@@ -1,7 +1,7 @@
 # pyMountOperator
 
 
-a simple package to allow interfacing with any iOptron mount, utilizing their RS232 Mount Command Language, and connecting through serial.
+A simple package to facillitate communication with a indi-compatible mount through pyindi-client, 
 
 
 
