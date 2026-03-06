@@ -1,0 +1,29 @@
+import serial
+import waiter
+
+
+# open the port 
+ser = serial.Serial("/dev/ttyUSB0", baudrate=115200, timeout=1)
+
+# send a string command (encoding it to bytes, hence the b)
+ser.write(b":MP1#\r\n")
+# read the response. Should be 1 for MH (home)
+response = ser.readline().decode("utf-8").strip()
+print(f"Mount recieved park command with response {response}")
+
+waiter.wait(ser)
+
+
+ser.write(b":MP0#\r\n")
+# read the response. Should be 1 for MH (home)
+response = ser.readline().decode("utf-8").strip()
+print(f"Mount recieved unpark command with response {response}")
+
+ser.write(b":MH#\r\n")
+# read the response. Should be 1 for MH (home)
+response = ser.readline().decode("utf-8").strip()
+print(f"Mount recieved home command with response {response}")
+
+waiter.wait(ser)
+
+ser.close() # close when done
