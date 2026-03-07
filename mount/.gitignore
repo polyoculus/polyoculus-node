@@ -1,0 +1,5 @@
+# Ignore the build folder in docs
+docs/build/
+
+# Ignore the .venv folder
+.venv/
