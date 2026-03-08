@@ -1,5 +1,10 @@
-# Ignore the build folder in docs
+# Ignore parts of the docs
 docs/build/
+docs/source/api/
 
 # Ignore the .venv folder
 .venv/
+
+# Ignore the pycache directory
+src/__pycache__/
+
