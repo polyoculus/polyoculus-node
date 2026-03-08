@@ -3,6 +3,7 @@ babel==2.18.0
 bottle==0.13.4
 certifi==2026.2.25
 charset-normalizer==3.4.5
+dataclasses==0.6
 dbus-python==1.4.0
 docutils==0.22.4
 idna==3.11
