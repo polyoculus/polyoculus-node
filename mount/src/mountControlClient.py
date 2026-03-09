@@ -1,4 +1,5 @@
 import PyIndi
+from datetime import datetime
 import threading
 from loguru import logger
 from mountConfiguration import MountConfiguration
@@ -19,6 +20,17 @@ class MountControlClient(PyIndi.BaseClient):
         self._property_events: dict[str, threading.Event] = {}
         self._connected_event = threading.Event()
         self.config = MountConfiguration()
+        self.connection_ready = threading.Event()
+        self.mount_ready = threading.Event()
+
+        self._required_props = {
+            "EQUATORIAL_EOD_COORD",
+            "TELESCOPE_PARK",
+            "TELESCOPE_MOTION_NS",
+            "TELESCOPE_MOTION_WE",
+            # any additional properties as needed
+        }
+        self._received_props = set()
         super().__init__()
         logger.info("new MountControlClient initialized!")
 
@@ -64,9 +76,18 @@ class MountControlClient(PyIndi.BaseClient):
         logger.debug(
             f"New Property: {p.getDeviceName()}.{p.getName()} ({p.getTypeAsString()})"
         )
-        key = f"{p.getDeviceName()}.{p.getName()}"
+        name = p.getName()
+        device = p.getDeviceName()
+        key = f"{device}.{name}"
         if key in self._property_events:
             self._property_events[key].set()
+
+        if name == "CONNECTION":
+            self.connection_ready.set()
+
+        self._received_props.add(name)
+        if self._required_props.issubset(self._received_props):
+            self.mount_ready.set()
 
     def updateProperty(self, p):
         """informs when a property has been updated
@@ -74,10 +95,12 @@ class MountControlClient(PyIndi.BaseClient):
         Args:
             p (): the PyINDI property that was updated
         """
-        logger.debug(
-            f"Updated: {p.getDeviceName()}.{p.getName()} ({p.getTypeAsString()})"
-        )
-        key = f"{p.getDeviceName()}.{p.getName()}"
+
+        device = p.getDeviceName()
+        name = p.getName()
+
+        logger.debug(f"Updated: {device}.{name} ({p.getTypeAsString()})")
+        key = f"{device}.{name}"
         if key in self._property_events:
             self._property_events[key].set()
 
