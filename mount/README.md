@@ -84,6 +84,7 @@ note that you will have to run `sphinx-apidoc` in the docs folder each time you 
 ### Things to add
 - below is a list of features that have yet to be completed. These are listed in order of priority.
     - basic testing with pytests
+    - error handling for all our functions
     - connecting to the device (mount)
         - Right Ascension and Declination coordinate system implementation
         - sending generic move commands
