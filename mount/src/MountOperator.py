@@ -1,11 +1,12 @@
 import PyIndi
 import sys
-import asyncio
+import time
 from loguru import logger
-from typing import AsyncGenerator
 from mountControlClient import MountControlClient
 from mountConfiguration import MountConfiguration
 from coordinate import EOD_COORD
+from mountaction import MountMode
+from cardinalDirection import CardinalDirection
 
 
 class MountOperator:
@@ -59,17 +60,72 @@ class MountOperator:
     def disconnect(self):
         pass
 
-    def on_coord_set(self):
+    def on_coord_set_mode(self, mode: MountMode = MountMode.Default()):
+        props = self.device.getSwitch("ON_COORD_SET")
+
+        match mode:
+            case MountMode.SLEW:
+                props[0].setState(PyIndi.ISS_ON)
+                props[1].setState(PyIndi.ISS_OFF)
+                props[2].setState(PyIndi.ISS_OFF)
+            case MountMode.TRACK:
+                props[0].setState(PyIndi.ISS_OFF)
+                props[1].setState(PyIndi.ISS_ON)
+                props[2].setState(PyIndi.ISS_OFF)
+            case MountMode.SYNC:
+                props[0].setState(PyIndi.ISS_OFF)
+                props[1].setState(PyIndi.ISS_OFF)
+                props[2].setState(PyIndi.ISS_ON)
+        self.client.sendNewSwitch(props)
+
+    def get_EOD_COORD(self) -> EOD_COORD:
         pass
 
-    async def get_EOD_COORD(self):
+    def go_home(self):
+        logger.info("Going home now!")
+        prop = self.device.getProperty("TELESCOPE_HOME")
+        sp = PyIndi.PropertySwitch(prop)
+
+        for sw in sp:
+            if sw.getName() == "GO":
+                sw.setState(PyIndi.ISS_ON)
+            else:
+                sw.setState(PyIndi.ISS_OFF)
+        self.client.sendNewSwitch(sp)
+
+    def set_slew_speed(self, speed: int):
         pass
 
-    async def get_EOD_COORD_STREAM(self) -> AsyncGenerator[EOD_COORD, None]:
-        pass
+    def move_dir(
+        self, direction: CardinalDirection = CardinalDirection.North, timeout: int = 120
+    ):
+        prop_name = None
+        on_name = None
+        match direction:
+            case CardinalDirection.North:
+                prop_name = "TELESCOPE_MOTION_NS"
+                on_name = "MOTION_NORTH"
+            case CardinalDirection.South:
+                prop_name = "TELESCOPE_MOTION_NS"
+                on_name = "MOTION_SOUTH"
+            case CardinalDirection.West:
+                prop_name = "TELESCOPE_MOTION_WE"
+                on_name = "MOTION_WEST"
+            case CardinalDirection.East:
+                prop_name = "TELESCOPE_MOTION_WE"
+                on_name = "MOTION_EAST"
 
-    class GenericMove:
-        pass
+        prop = self.device.getProperty(prop_name)
+        sp = PyIndi.PropertySwitch(prop)
 
-    class CoordinateMove:
-        pass
+        logger.info(f"Moving in the {direction} direction for {timeout}s")
+        for sw in sp:
+            if sw.getName() == on_name:
+                sw.setState(PyIndi.ISS_ON)
+            else:
+                sw.setState(PyIndi.ISS_OFF)
+        self.client.sendNewSwitch(sp)
+        time.sleep(timeout)
+        for sw in sp:
+            sw.setState(PyIndi.ISS_OFF)
+        self.client.sendNewSwitch(sp)

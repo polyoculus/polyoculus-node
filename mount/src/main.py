@@ -1,129 +1,20 @@
-import time
-import sys
-import PyIndi
-from datetime import datetime
 from loguru import logger
-from mountControlClient import MountControlClient
-from mountConfiguration import MountConfiguration
+from MountOperator import MountOperator
+from cardinalDirection import CardinalDirection
 
 
 def main():
-    logger.info("hello iOptron!")
-    logger.info("now attempting to connect to indiserver")
+    logger.info("Hello iOptron!")
+    operator = MountOperator()
 
-    client = MountControlClient()
-    config = MountConfiguration()
-    device = None
+    operator.connect()
 
-    client.connectServer()
+    operator.move_dir(direction=CardinalDirection.North, timeout=8)
+    operator.move_dir(direction=CardinalDirection.West, timeout=8)
+    operator.move_dir(direction=CardinalDirection.South, timeout=5)
+    operator.move_dir(direction=CardinalDirection.East, timeout=5)
 
-    client.wait_for_device()
-    device = client.getDevice(config.DEVICE_NAME)
-
-    # wait for the server to connect
-    if not client.connection_ready.wait(timeout=config.TIMEOUT):
-        logger.error("timed out waiting for indiserver connection to occur")
-        sys.exit(1)
-
-    print(f"the type of device is: {type(device)}")
-
-    # now, connect to the device by toggling the CONNECTION switch to ON
-    conn_prop = device.getProperty("CONNECTION")
-    conn_sp = PyIndi.PropertySwitch(conn_prop)
-    for sw in conn_sp:
-        if sw.getName() == "CONNECT":
-            sw.setState(PyIndi.ISS_ON)
-        else:
-            sw.setState(PyIndi.ISS_OFF)
-    client.sendNewSwitch(conn_sp)
-
-    # now wait for the driver to report success and give us properties
-    if not client.mount_ready.wait(timeout=config.TIMEOUT):
-        logger.error("timed out waitinf for mount properties to arrive")
-        sys.exit(2)
-
-    # unpark the mount
-    # logger.info("Unparking mount now")
-    # prop = device.getProperty("TELESCOPE_PARK")
-
-    """Print a human-readable status summary."""
-    prop = device.getProperty("EQUATORIAL_EOD_COORD")
-    np = PyIndi.PropertyNumber(prop)
-    ra = dec = 0.0
-    for widget in np:
-        print(f"we got a widget who's name was: {widget.getName()}")
-        if widget.getName() == "RA":
-            print("Found RA, getting value")
-            ra = widget.getValue()
-            print(f"value was {widget.getValue()}")
-        elif widget.getName() == "DEC":
-            print("Found DEC, getting value")
-            dec = widget.getValue()
-            print(f"value was {dec}")
-
-    # RA in HH:MM:SS
-    ra_h = int(ra)
-    ra_m = int((ra - ra_h) * 60)
-    ra_s = ((ra - ra_h) * 60 - ra_m) * 60
-
-    # DEC in DD:MM:SS
-    dec_sign = "+" if dec >= 0 else "-"
-    dec_abs = abs(dec)
-    dec_d = int(dec_abs)
-    dec_m = int((dec_abs - dec_d) * 60)
-    dec_s = ((dec_abs - dec_d) * 60 - dec_m) * 60
-
-    ra_str = f"{ra_h:02d}h {ra_m:02d}m {ra_s:05.2f}s"
-    dec_str = f"{dec_sign}{dec_d:02d}° {dec_m:02d}' {dec_s:05.2f}\""
-
-    print(f"\n{'=' * 50}")
-    print(f"  iOptron CEM70 Status  —  {datetime.now().strftime('%H:%M:%S')}")
-    print(f"{'=' * 50}")
-    print(f"  RA:   {ra_str}  ({ra:.6f} h)")
-    print(f"  DEC:  {dec_str}  ({dec:.6f}°)")
-
-    # The above code does not seem to work for some reason. Perhaps unparking the mount first, then gatheting position data will solve this, however I am unsure
-
-    # now try to move north ten secs
-    prop_name = "TELESCOPE_MOTION_WE"
-    on_name = "MOTION_WEST"
-    prop = device.getProperty(prop_name)
-    sp = PyIndi.PropertySwitch(prop)
-    for sw in sp:
-        if sw.getName() == on_name:
-            sw.setState(PyIndi.ISS_ON)
-        else:
-            sw.setState(PyIndi.ISS_OFF)
-    client.sendNewSwitch(sp)
-    logger.info("Moving north ten secs")
-
-    time.sleep(10)
-    for sw in sp:
-        if sw.getName() == on_name:
-            sw.setState(PyIndi.ISS_OFF)
-        else:
-            sw.setState(PyIndi.ISS_OFF)
-    client.sendNewSwitch(sp)
-
-    time.sleep(1)  # wait one second prior to the next step
-
-    # Get the coordinate property
-    eod_coord = device.getNumber("EQUATORIAL_EOD_COORD")
-
-    # Set target RA/DEC (RA in hours, DEC in degrees)
-    eod_coord[0].setValue(10.0)  # RA
-    eod_coord[1].setValue(10.0)  # DEC
-
-    # Make sure the mount is in SLEW mode (not TRACK or SYNC)
-    on_coord_set = device.getSwitch("ON_COORD_SET")
-    on_coord_set[0].setState(PyIndi.ISS_ON)  # SLEW (or TRACK depending on driver)
-    on_coord_set[1].setState(PyIndi.ISS_OFF)  # SYNC
-    client.sendNewSwitch(on_coord_set)
-
-    # Send the coordinates — this triggers the slew
-    client.sendNewNumber(eod_coord)
-
-    time.sleep(20)
+    operator.go_home()
 
 
 if __name__ == "__main__":
