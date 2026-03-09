@@ -75,15 +75,19 @@ note that you will have to run `sphinx-apidoc` in the docs folder each time you 
     - connecting with indiserver 
     - basic documentation
 
+### Things that are in progress
+- Below is a list of features that are in progress
+    - Connecting to the device (Mount)
+        - recieving a stream of RA and Dec coordinates (where the mount is pointed) 
+        - arbitrary move commands (e.x. move until I say stop)
+
 ### Things to add
 - below is a list of features that have yet to be completed. These are listed in order of priority.
     - basic testing with pytests
     - connecting to the device (mount)
         - Right Ascension and Declination coordinate system implementation
-        - recieving a stream of RA and Dec coordinates (where the mount is pointed)
         - sending generic move commands
             - timed moved commands (e.x. move up 20s)
-            - arbitrary move commands (e.x. move until I say stop)
             - Coordinate move commands (e.x. move to a specific RA and Dec)
         - sending complex move commands
             - coordinate move commands (more special because it requires changing the slew rate as we approach the target. This ensures a higher accuracy, and that we reach it properly)
