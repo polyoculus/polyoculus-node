@@ -66,6 +66,10 @@ latexpdf generates a pdf document using latex, and the doc will be located in '_
 
 note that you will have to run `sphinx-apidoc` in the docs folder each time you add or delete source files.
 
+## Formatting
+
+- use Ruff for formatting python. [See Ruff](https://docs.astral.sh/ruff/formatter/)
+
 ### Things that are complete
 - below is a list of features that are complete
     - connecting with indiserver 
