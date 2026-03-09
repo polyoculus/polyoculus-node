@@ -68,9 +68,10 @@ def main():
     print(f"{'=' * 50}")
     print(f"  RA:   {ra_str}  ({ra:.6f} h)")
     print(f"  DEC:  {dec_str}  ({dec:.6f}°)")
-    
 
-    # unpark the mount 
+    # The above code does not seem to work for some reason. Perhaps unparking the mount first, then gatheting position data will solve this, however I am unsure
+
+    # unpark the mount
     logger.info("Unparking mount now")
     prop = device.getProperty("TELESCOPE_PARK")
 
@@ -90,10 +91,11 @@ def main():
     time.sleep(10)
     for sw in sp:
         if sw.getName() == on_name:
-            sw.setState(PyIndi.ISS_ON)
-        else: 
             sw.setState(PyIndi.ISS_OFF)
-    client.sendNewSwitch(sp) 
+        else:
+            sw.setState(PyIndi.ISS_OFF)
+    client.sendNewSwitch(sp)
+
 
 if __name__ == "__main__":
     logger.info("package currently being run in Demo mode")
