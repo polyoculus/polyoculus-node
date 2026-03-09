@@ -1,4 +1,5 @@
 import time
+import sys
 import PyIndi
 from datetime import datetime
 from loguru import logger
@@ -19,6 +20,13 @@ def main():
     client.wait_for_device()
     device = client.getDevice(config.DEVICE_NAME)
 
+    # wait for the server to connect
+    if not client.connection_ready.wait(timeout=config.TIMEOUT):
+        logger.error("timed out waiting for indiserver connection to occur")
+        sys.exit(1)
+
+    print(f"the type of device is: {type(device)}")
+
     # now, connect to the device by toggling the CONNECTION switch to ON
     conn_prop = device.getProperty("CONNECTION")
     conn_sp = PyIndi.PropertySwitch(conn_prop)
@@ -28,10 +36,15 @@ def main():
         else:
             sw.setState(PyIndi.ISS_OFF)
     client.sendNewSwitch(conn_sp)
-    logger.info("Connection request sent, now waiting for driver handshake......")
-    time.sleep(
-        3
-    )  # this is unsafe. There is probably a way to access INDI and let it tell us how long to wait instead. This works for now
+
+    # now wait for the driver to report success and give us properties
+    if not client.mount_ready.wait(timeout=config.TIMEOUT):
+        logger.error("timed out waitinf for mount properties to arrive")
+        sys.exit(2)
+
+    # unpark the mount
+    # logger.info("Unparking mount now")
+    # prop = device.getProperty("TELESCOPE_PARK")
 
     """Print a human-readable status summary."""
     prop = device.getProperty("EQUATORIAL_EOD_COORD")
@@ -71,13 +84,9 @@ def main():
 
     # The above code does not seem to work for some reason. Perhaps unparking the mount first, then gatheting position data will solve this, however I am unsure
 
-    # unpark the mount
-    logger.info("Unparking mount now")
-    prop = device.getProperty("TELESCOPE_PARK")
-
     # now try to move north ten secs
-    prop_name = "TELESCOPE_MOTION_NS"
-    on_name = "MOTION_NORTH"
+    prop_name = "TELESCOPE_MOTION_WE"
+    on_name = "MOTION_WEST"
     prop = device.getProperty(prop_name)
     sp = PyIndi.PropertySwitch(prop)
     for sw in sp:
@@ -95,6 +104,26 @@ def main():
         else:
             sw.setState(PyIndi.ISS_OFF)
     client.sendNewSwitch(sp)
+
+    time.sleep(1)  # wait one second prior to the next step
+
+    # Get the coordinate property
+    eod_coord = device.getNumber("EQUATORIAL_EOD_COORD")
+
+    # Set target RA/DEC (RA in hours, DEC in degrees)
+    eod_coord[0].setValue(10.0)  # RA
+    eod_coord[1].setValue(10.0)  # DEC
+
+    # Make sure the mount is in SLEW mode (not TRACK or SYNC)
+    on_coord_set = device.getSwitch("ON_COORD_SET")
+    on_coord_set[0].setState(PyIndi.ISS_ON)  # SLEW (or TRACK depending on driver)
+    on_coord_set[1].setState(PyIndi.ISS_OFF)  # SYNC
+    client.sendNewSwitch(on_coord_set)
+
+    # Send the coordinates — this triggers the slew
+    client.sendNewNumber(eod_coord)
+
+    time.sleep(20)
 
 
 if __name__ == "__main__":
