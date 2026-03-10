@@ -10,6 +10,14 @@ from cardinalDirection import CardinalDirection
 
 
 class MountOperator:
+    """
+
+    Attributes:
+        client: The MountControlClient (client to connect to. You can pass in your own if you want to specify a configuration)
+        config: The MountConfiguration (Configuraton for properties such as device, timeout, etc. See docs on MountConfiguration for more info)
+        device: the PyIndi Device
+    """
+
     client: MountControlClient
     config: MountConfiguration
     device: PyIndi.PyIndi.BaseDevice
@@ -93,6 +101,12 @@ class MountOperator:
                 sw.setState(PyIndi.ISS_OFF)
         self.client.sendNewSwitch(sp)
 
+    def park(self):
+        pass
+
+    def unpark(self):
+        pass
+
     def set_slew_speed(self, speed: int):
         pass
 
@@ -129,3 +143,30 @@ class MountOperator:
         for sw in sp:
             sw.setState(PyIndi.ISS_OFF)
         self.client.sendNewSwitch(sp)
+
+    def move_coord(self, coordinate: EOD_COORD):
+        pass
+
+    def move_abort_on(self):
+        """Halts all movement for the mount device, gracefully. See Indi's property docs for the TELESCOPE_ABORT_MOTION entry'"""
+        prop = self.device.getProperty("TELESCOPE_ABORT_MOTION")
+        sp = PyIndi.PropertySwitch(prop)
+        for sw in sp:
+            sw.setState(PyIndi.ISS_ON)
+
+    def move_abort_off(self):
+        prop = self.device.getProperty("TELESCOPE_ABORT_MOTION")
+        sp = PyIndi.PropertySwitch(prop)
+        for sw in sp:
+            sw.setState(PyIndi.ISS_OFF)
+
+    def move_emergency_abort(self):
+        """Halts all movement for the mount device, as fast as possible"""
+        prop = self.device.getPropery("TELESCOPE_MOTION_NS")
+        sp = PyIndi.PropertySwitch(prop)
+        for sw in sp:
+            sw.setState(PyIndi.ISS_OFF)
+        prop = self.device.getProperty("TELESCOPE_MOTION_WE")
+        sp = PyIndi.PropertySwitch(prop)
+        for sw in sp:
+            sw.setState(PyIndi.ISS_OFF)

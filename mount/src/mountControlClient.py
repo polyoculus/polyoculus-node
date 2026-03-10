@@ -1,5 +1,4 @@
 import PyIndi
-from datetime import datetime
 import threading
 from loguru import logger
 from mountConfiguration import MountConfiguration
@@ -14,12 +13,12 @@ class MountControlClient(PyIndi.BaseClient):
 
     config: MountConfiguration
 
-    def __init__(self):
+    def __init__(self, config: MountConfiguration = MountConfiguration()):
         """Initializer for the Class"""
         self._device_event = threading.Event()
         self._property_events: dict[str, threading.Event] = {}
         self._connected_event = threading.Event()
-        self.config = MountConfiguration()
+        self.config = config
         self.connection_ready = threading.Event()
         self.mount_ready = threading.Event()
 
@@ -28,6 +27,7 @@ class MountControlClient(PyIndi.BaseClient):
             "TELESCOPE_PARK",
             "TELESCOPE_MOTION_NS",
             "TELESCOPE_MOTION_WE",
+            "TELESCOPE_ABORT_MOTION",
             # any additional properties as needed
         }
         self._received_props = set()
