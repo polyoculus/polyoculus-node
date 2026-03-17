@@ -1,0 +1,18 @@
+[project]
+name = "pyMountOperator"
+version = "0.1.0"
+description = "Python INDI client for controlling iOptron telescope mounts"
+requires-python = ">=3.10"
+dependencies = [
+    "loguru>=0.7",
+    "pyindi-client>=2.2.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
