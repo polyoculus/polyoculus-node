@@ -10,3 +10,5 @@ docs/source/_static
 # Ignore the pycache directory
 src/__pycache__
 
+# Ignore all .bak files
+*.bak
