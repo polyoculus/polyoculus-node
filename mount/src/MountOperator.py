@@ -1,21 +1,23 @@
+import threading
+
 import PyIndi
-import sys
-import time
 from loguru import logger
+
 from mountControlClient import MountControlClient
 from mountConfiguration import MountConfiguration
 from coordinate import EOD_COORD
 from mountaction import MountMode
 from cardinalDirection import CardinalDirection
+from exceptions import MountConnectionError, MountTimeoutError
 
 
 class MountOperator:
-    """
+    """High-level interface for controlling a telescope mount via INDI.
 
     Attributes:
-        client: The MountControlClient (client to connect to. You can pass in your own if you want to specify a configuration)
-        config: The MountConfiguration (Configuraton for properties such as device, timeout, etc. See docs on MountConfiguration for more info)
-        device: the PyIndi Device
+        client: The MountControlClient used to communicate with indiserver.
+        config: The MountConfiguration (host, port, device name, timeouts, etc.).
+        device: The PyIndi BaseDevice once connected.
     """
 
     client: MountControlClient
@@ -24,53 +26,48 @@ class MountOperator:
 
     def __init__(
         self,
-        client: MountControlClient = MountControlClient(),
-        config: MountConfiguration = MountConfiguration(),
-        device: PyIndi.PyIndi.BaseDevice = None,
+        client: MountControlClient = None,
+        config: MountConfiguration = None,
     ):
-        self.client = client
-        self.config = config
-        self.device = device
+        self.config = config or MountConfiguration()
+        self.client = client or MountControlClient(self.config)
+        self.device = None
+        self._abort_event = threading.Event()
 
-        logger.info("Instance of MountOperator initialized! Hello!")
+        logger.info("MountOperator initialized.")
 
     def connect(self):
-        logger.debug("Attempting to connect to mount now...")
+        """Connect to indiserver and wait for the mount device and its properties."""
+        logger.debug("Connecting to mount...")
         self.client.connectServer()
-        self.client.wait_for_device()  # wait for device to appear
+        self.client.wait_for_device()
+
         self.device = self.client.getDevice(self.config.DEVICE_NAME)
 
-        # wait for the device to connect
         if not self.client.connection_ready.wait(timeout=self.config.TIMEOUT):
-            logger.fault("Timed out while waiting for connection property to appear.")
-            sys.exit(
-                1
-            )  # we are using exit for now. Implement better error handling later
+            raise MountTimeoutError(
+                "Timed out waiting for the CONNECTION property to appear."
+            )
 
-        # now, connect to the device
         conn_prop = self.device.getProperty("CONNECTION")
         conn_sp = PyIndi.PropertySwitch(conn_prop)
         for sw in conn_sp:
-            if sw.getName() == "CONNECT":
-                sw.setState(PyIndi.ISS_ON)
-            else:
-                sw.setState(PyIndi.ISS_OFF)
+            sw.setState(PyIndi.ISS_ON if sw.getName() == "CONNECT" else PyIndi.ISS_OFF)
         self.client.sendNewSwitch(conn_sp)
 
         if not self.client.mount_ready.wait(timeout=self.config.TIMEOUT):
-            logger.fault(
-                "Timed out while waiting for the necessary mount properties to arrive."
+            raise MountTimeoutError(
+                "Timed out waiting for required mount properties to arrive."
             )
-            sys.exit(2)  # another sys.exit. change later
 
-        logger.info("Connection to Mount successful!")
+        logger.info("Connected to mount successfully.")
 
     def disconnect(self):
         pass
 
     def on_coord_set_mode(self, mode: MountMode = MountMode.Default()):
+        """Set the ON_COORD_SET mode (SLEW, TRACK, or SYNC)."""
         props = self.device.getSwitch("ON_COORD_SET")
-
         match mode:
             case MountMode.SLEW:
                 props[0].setState(PyIndi.ISS_ON)
@@ -90,15 +87,12 @@ class MountOperator:
         pass
 
     def go_home(self):
-        logger.info("Going home now!")
+        """Send the mount to its home position."""
+        logger.info("Going home.")
         prop = self.device.getProperty("TELESCOPE_HOME")
         sp = PyIndi.PropertySwitch(prop)
-
         for sw in sp:
-            if sw.getName() == "GO":
-                sw.setState(PyIndi.ISS_ON)
-            else:
-                sw.setState(PyIndi.ISS_OFF)
+            sw.setState(PyIndi.ISS_ON if sw.getName() == "GO" else PyIndi.ISS_OFF)
         self.client.sendNewSwitch(sp)
 
     def park(self):
@@ -113,33 +107,28 @@ class MountOperator:
     def move_dir(
         self, direction: CardinalDirection = CardinalDirection.North, timeout: int = 120
     ):
-        prop_name = None
-        on_name = None
-        match direction:
-            case CardinalDirection.North:
-                prop_name = "TELESCOPE_MOTION_NS"
-                on_name = "MOTION_NORTH"
-            case CardinalDirection.South:
-                prop_name = "TELESCOPE_MOTION_NS"
-                on_name = "MOTION_SOUTH"
-            case CardinalDirection.West:
-                prop_name = "TELESCOPE_MOTION_WE"
-                on_name = "MOTION_WEST"
-            case CardinalDirection.East:
-                prop_name = "TELESCOPE_MOTION_WE"
-                on_name = "MOTION_EAST"
+        """Move the mount in a cardinal direction for a given number of seconds.
 
-        prop = self.device.getProperty(prop_name)
+        The move can be interrupted early by calling move_abort_on() or
+        move_emergency_abort() from another thread.
+
+        Args:
+            direction: The direction to move (North, South, East, West).
+            timeout: How long to move in seconds.
+        """
+        prop = self.device.getProperty(direction.prop_name)
         sp = PyIndi.PropertySwitch(prop)
 
-        logger.info(f"Moving in the {direction} direction for {timeout}s")
+        logger.info(f"Moving {direction.name} for {timeout}s.")
         for sw in sp:
-            if sw.getName() == on_name:
-                sw.setState(PyIndi.ISS_ON)
-            else:
-                sw.setState(PyIndi.ISS_OFF)
+            sw.setState(
+                PyIndi.ISS_ON if sw.getName() == direction.switch_name else PyIndi.ISS_OFF
+            )
         self.client.sendNewSwitch(sp)
-        time.sleep(timeout)
+
+        self._abort_event.clear()
+        self._abort_event.wait(timeout=timeout)
+
         for sw in sp:
             sw.setState(PyIndi.ISS_OFF)
         self.client.sendNewSwitch(sp)
@@ -148,25 +137,35 @@ class MountOperator:
         pass
 
     def move_abort_on(self):
-        """Halts all movement for the mount device, gracefully. See Indi's property docs for the TELESCOPE_ABORT_MOTION entry'"""
+        """Halt all mount movement gracefully via TELESCOPE_ABORT_MOTION."""
+        logger.info("Aborting motion.")
+        self._abort_event.set()
         prop = self.device.getProperty("TELESCOPE_ABORT_MOTION")
         sp = PyIndi.PropertySwitch(prop)
         for sw in sp:
             sw.setState(PyIndi.ISS_ON)
+        self.client.sendNewSwitch(sp)
 
     def move_abort_off(self):
+        """Clear the TELESCOPE_ABORT_MOTION switch."""
         prop = self.device.getProperty("TELESCOPE_ABORT_MOTION")
         sp = PyIndi.PropertySwitch(prop)
         for sw in sp:
             sw.setState(PyIndi.ISS_OFF)
+        self.client.sendNewSwitch(sp)
 
     def move_emergency_abort(self):
-        """Halts all movement for the mount device, as fast as possible"""
-        prop = self.device.getPropery("TELESCOPE_MOTION_NS")
+        """Halt all mount movement as fast as possible by zeroing motion switches directly."""
+        logger.warning("Emergency abort!")
+        self._abort_event.set()
+        prop = self.device.getProperty("TELESCOPE_MOTION_NS")
         sp = PyIndi.PropertySwitch(prop)
         for sw in sp:
             sw.setState(PyIndi.ISS_OFF)
+        self.client.sendNewSwitch(sp)
+
         prop = self.device.getProperty("TELESCOPE_MOTION_WE")
         sp = PyIndi.PropertySwitch(prop)
         for sw in sp:
             sw.setState(PyIndi.ISS_OFF)
+        self.client.sendNewSwitch(sp)
