@@ -52,7 +52,7 @@ python3 main.py
 
 - Documentation is done through Sphinx. See [Sphinx's Documentation](https://www.sphinx-doc.org/en/master/index.html) for more information on how to do this. As long as you stick to the proper formatting when documenting your functions, classes, variables, etc, there should be no issue with sphinx detecting it.
 
-- to build documentation:
+- to build documentation FOR THIS SPECIFIC PROJECT:
 
 ensure that all dependencies are installed from requirements.txt
 
@@ -64,7 +64,8 @@ make latexpdf
 ```
 latexpdf generates a pdf document using latex, and the doc will be located in '_build/latex/'. Ensure you have all dependencies for latex installed for it to work. if you can't use latex, try building an epub or html instead.
 
-note that you will have to run `sphinx-apidoc` in the docs folder each time you add or delete source files.
+> [!note] You will have to run `sphinx-apidoc` in the docs folder each time you add or delete source files.
+> [!note] To view full project documentation, refer to PolyOculusDocs
 
 ## Formatting
 
