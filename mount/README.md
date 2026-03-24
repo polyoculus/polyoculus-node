@@ -65,6 +65,7 @@ make latexpdf
 latexpdf generates a pdf document using latex, and the doc will be located in '_build/latex/'. Ensure you have all dependencies for latex installed for it to work. if you can't use latex, try building an epub or html instead.
 
 > [!note] You will have to run `sphinx-apidoc` in the docs folder each time you add or delete source files.
+
 > [!note] To view full project documentation, refer to PolyOculusDocs
 
 ## Formatting
