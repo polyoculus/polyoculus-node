@@ -1,16 +1,21 @@
-# Arch Linux ARM on the PolyOculus Jetson Nanos
+# polyoculus-node
 
-Everything needed to take one of the lab's original 2019 Jetson Nanos (p3450, 4 GB) from a
-blank SD card to a fully configured telescope node: a mainline 7.1 kernel, Arch Linux ARM,
-and Ansible to keep all eight identical. Replaces NVIDIA's end-of-life Ubuntu 18.04 / JetPack 4.6.
+Everything that runs on a PolyOculus telescope node: one of the lab's original 2019 Jetson
+Nanos (p3450, 4 GB), each driving one telescope's mount and guide camera. Covers the OS
+(mainline 7.1 kernel + Arch Linux ARM, replacing NVIDIA's end-of-life Ubuntu 18.04),
+fleet configuration, and the lab's node software.
 
 ```
-build-kernel.sh   build the Nano kernel (x86_64 Linux, ~30 min the first time)
-flash-card.sh     write Arch + the kernel to an SD card
-setup.sh          first boot on the Nano: passwords, package keys, python for Ansible
-kernel/config     kernel config (Arch's, with the Nano's drivers built in)
-ansible/          everything after first boot: packages, time sync, Tailscale, INDI, SD-card wear
+os/build-kernel.sh   build the Nano kernel (x86_64 Linux, ~30 min the first time)
+os/flash-card.sh     write Arch + the kernel to an SD card
+os/setup.sh          first boot on the Nano: passwords, package keys, python for Ansible
+os/kernel/config     kernel config (Arch's, with the Nano's drivers built in)
+ansible/             everything after first boot: packages, time sync, Tailscale, INDI, SD-card wear
+mount/               iOptron CEM70 control over INDI (was pyMountOperator)
+camera/              DMK 33UX273 guide camera + piezo steering mirror (was dmk-camera)
 ```
+
+`mount/` and `camera/` were separate repos; they were imported with their full history.
 
 ## The rule: nothing lives only on the SD card
 
@@ -23,6 +28,7 @@ off the card. Keep a pre-flashed spare card at the observatory.
 On an x86_64 Linux machine:
 
 ```sh
+cd os
 ./build-kernel.sh                         # skip if build/out exists
 sudo ./flash-card.sh /dev/sdX nano-03     # check the device with lsblk first!
 ```
@@ -36,7 +42,7 @@ Put the card in the Nano, plug in HDMI, keyboard and Ethernet, boot, log in as `
 Then from your laptop (Ansible runs through `uvx`, nothing to install):
 
 ```sh
-cd ansible
+cd ansible   # from the repo root
 TS_AUTHKEY=tskey-... uvx --from ansible ansible-playbook site.yml -K --limit nano-03
 ```
 
@@ -67,7 +73,7 @@ Arch's stock `linux-aarch64` kernel and initramfs don't boot on the Nano as ship
   and the kernel at 0x84000000, so anything over 14 MiB gets overwritten. Arch's initramfs is ~15 MB.
 - **No fan.** `PWM_TEGRA` isn't enabled, so `pwm-fan` and the GPU regulator never probe.
 
-`kernel/config` is Arch's config with `I2C_TEGRA`, `TEGRA_HOST1X`, `DRM_TEGRA`,
+`os/kernel/config` is Arch's config with `I2C_TEGRA`, `TEGRA_HOST1X`, `DRM_TEGRA`,
 `DRM_CLIENT_LIB` and `PWM_TEGRA` built in, plus the USB (`xusb.bin`) and VIC firmware
 embedded via `EXTRA_FIRMWARE`. With that, the Nano boots with no initramfs at all.
 
@@ -86,8 +92,8 @@ embedded via `EXTRA_FIRMWARE`. With that, the Nano boots with no initramfs at al
 ## Updating the kernel
 
 `upgrade.yml` updates everything except the kernel. For a new kernel: bump `KVER` in
-`build-kernel.sh`, run it (`make olddefconfig` carries the config forward), and copy
-`build/out/Image-nano`, the dtb and `lib/modules/<version>` onto the card.
+`os/build-kernel.sh`, run it (`make olddefconfig` carries the config forward), and copy
+`os/build/out/Image-nano`, the dtb and `lib/modules/<version>` onto the card.
 
 ## Debugging a boot that won't come up
 
