@@ -28,6 +28,8 @@ class MountControlClient(PyIndi.BaseClient):
             "TELESCOPE_MOTION_NS",
             "TELESCOPE_MOTION_WE",
             "TELESCOPE_ABORT_MOTION",
+            "TELESCOPE_TIMED_GUIDE_NS",
+            "TELESCOPE_TIMED_GUIDE_WE",
             # any additional properties as needed
         }
         self._received_props = set()

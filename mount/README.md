@@ -1,7 +1,13 @@
 # pyMountOperator
 
 
-A simple package to facillitate communication with a indi-compatible mount through pyindi-client. Currently, it does not function as a package as a lot of things have yet to be implemented.
+A simple package to facillitate communication with a indi-compatible mount through pyindi-client.
+
+`MountOperator` covers what a node needs: `connect` / `disconnect` (sets `DEVICE_PORT` and the
+baud rate when the driver has them), `unpark` / `park`, `set_tracking`, `move_coord` (slew to
+RA/Dec, then track; or SLEW / SYNC), `get_EOD_COORD`, `guide` (timed guide pulses),
+`move_dir` with `set_slew_speed`, `go_home`, and the abort calls. All of it is tested against
+`indi_simulator_telescope`; `uv run pytest` runs the unit tests without a server.
 
 
 

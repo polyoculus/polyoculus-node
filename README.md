@@ -13,6 +13,7 @@ os/kernel/config     kernel config (Arch's, with the Nano's drivers built in)
 ansible/             everything after first boot: packages, time sync, Tailscale, INDI, SD-card wear
 mount/               iOptron CEM70 control over INDI (was pyMountOperator)
 camera/              DMK 33UX273 guide camera + piezo steering mirror (was dmk-camera)
+guide/               autoguiding: camera centroid -> mount guide pulses (+ an INDI-simulator test)
 ```
 
 `mount/` and `camera/` were separate repos; they were imported with their full history.
