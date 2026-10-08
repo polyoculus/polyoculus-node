@@ -1,0 +1,6 @@
+---
+# libindi 2.x ships indiserver and the iOptron v3 driver (indi_ioptronv3_telescope) for the CEM70s
+- name: INDI installed
+  community.general.pacman:
+    name: libindi
+    state: present

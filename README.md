@@ -1,15 +1,30 @@
-# Arch Linux ARM on the Jetson Nano
+# Arch Linux ARM on the PolyOculus Jetson Nanos
 
-Modern Arch Linux ARM (mainline kernel 7.1) on the original 2019 Jetson Nano dev kit
-(p3450, 4 GB), replacing NVIDIA's end-of-life Ubuntu 18.04 / JetPack 4.6.
+Everything needed to take one of the lab's original 2019 Jetson Nanos (p3450, 4 GB) from a
+blank SD card to a fully configured telescope node: a mainline 7.1 kernel, Arch Linux ARM,
+and Ansible to keep all eight identical. Replaces NVIDIA's end-of-life Ubuntu 18.04 / JetPack 4.6.
 
-## Setting up a Nano
+```
+build-kernel.sh   build the Nano kernel (x86_64 Linux, ~30 min the first time)
+flash-card.sh     write Arch + the kernel to an SD card
+setup.sh          first boot on the Nano: passwords, package keys, python for Ansible
+kernel/config     kernel config (Arch's, with the Nano's drivers built in)
+ansible/          everything after first boot: packages, time sync, Tailscale, INDI, SD-card wear
+```
+
+## The rule: nothing lives only on the SD card
+
+SD cards die. Every Nano must be rebuildable from this repo in ~15 minutes, so anything unique
+to one Nano (settings in `ansible/host_vars/`, calibration files, observation data) has a copy
+off the card. Keep a pre-flashed spare card at the observatory.
+
+## New Nano, or replacing a dead card
 
 On an x86_64 Linux machine:
 
 ```sh
-./build-kernel.sh                         # ~30 min the first time; skip if build/out exists
-sudo ./flash-card.sh /dev/sdX nano-02     # check the device with lsblk first!
+./build-kernel.sh                         # skip if build/out exists
+sudo ./flash-card.sh /dev/sdX nano-03     # check the device with lsblk first!
 ```
 
 Put the card in the Nano, plug in HDMI, keyboard and Ethernet, boot, log in as `root` / `root`:
@@ -18,8 +33,28 @@ Put the card in the Nano, plug in HDMI, keyboard and Ethernet, boot, log in as `
 ./setup.sh
 ```
 
-That sets passwords, updates, installs sudo/python/git, and sets up locale, NTP and zram.
-After that, `ssh alarm@<ip>`.
+Then from your laptop (Ansible runs through `uvx`, nothing to install):
+
+```sh
+cd ansible
+TS_AUTHKEY=tskey-... uvx --from ansible ansible-playbook site.yml -K --limit nano-03
+```
+
+Until a Nano has joined Tailscale, give it `ansible_host: <ip>` in `inventory.yml`.
+Rerunning `site.yml` is always safe; it only changes what differs. Note that deleting a line
+from the config does not undo it on the Nanos: write `state: absent` instead.
+
+## Updating
+
+Arch updates continuously, so never update Nanos one by one by hand or they drift apart.
+
+```sh
+uvx --from ansible ansible-playbook upgrade.yml -K --limit nano-01   # canary first
+# guide with nano-01 for a night, then everyone:
+uvx --from ansible ansible-playbook upgrade.yml -K
+```
+
+The kernel is not a pacman package; see "Updating the kernel" below.
 
 ## Why a custom kernel
 
@@ -48,15 +83,17 @@ embedded via `EXTRA_FIRMWARE`. With that, the Nano boots with no initramfs at al
   JetPack 4.5+ at least once so that QSPI firmware is current.
 - **No clock battery:** the clock is wrong until NTP syncs, so journal timestamps from early boot are bogus.
 
-## Updating
+## Updating the kernel
 
-`pacman -Syu` updates everything except the kernel. For a new kernel: bump `KVER` in
+`upgrade.yml` updates everything except the kernel. For a new kernel: bump `KVER` in
 `build-kernel.sh`, run it (`make olddefconfig` carries the config forward), and copy
 `build/out/Image-nano`, the dtb and `lib/modules/<version>` onto the card.
 
 ## Debugging a boot that won't come up
 
-The system log persists on the card: mount it on a laptop and read
+Ansible keeps logs in RAM to save the card (`journal_storage: volatile`), so set it to
+`persistent` on a Nano you are debugging. A freshly flashed card keeps logs until Ansible runs.
+Then mount the card on a laptop and read
 `/var/log/journal/*/system.journal`. Without `journalctl`, `strings -n 8 system.journal | grep ^MESSAGE=` works.
 If nothing gets logged, a 3.3 V USB-serial adapter on the debug UART shows U-Boot and kernel
 output (`console=ttyS0,115200` is already set).

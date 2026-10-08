@@ -1,0 +1,21 @@
+---
+# Rolling pacman upgrade: the first Nano alone, then the rest only if it succeeded.
+# Test the first Nano (a night of guiding) before running this a second time for the others,
+# or use --limit to upgrade only the canary.
+#   ansible-playbook upgrade.yml -K
+- name: Rolling upgrade
+  hosts: nanos
+  become: true
+  serial: [1, "100%"]
+  max_fail_percentage: 0
+  tasks:
+    - name: Full system upgrade
+      community.general.pacman:
+        update_cache: true
+        upgrade: true
+      register: up
+
+    - name: Packages changed
+      ansible.builtin.debug:
+        var: up.packages
+      when: up.packages | default([]) | length > 0

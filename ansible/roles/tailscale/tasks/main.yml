@@ -1,0 +1,28 @@
+---
+- name: Tailscale installed
+  community.general.pacman:
+    name: tailscale
+    state: present
+
+- name: Tailscaled running
+  ansible.builtin.systemd_service:
+    name: tailscaled
+    state: started
+    enabled: true
+
+- name: Tailscale login state
+  ansible.builtin.command: tailscale status --json
+  register: tailscale_status
+  changed_when: false
+  failed_when: false
+
+# Auth key from the Tailscale admin console: TS_AUTHKEY=tskey-... ansible-playbook site.yml
+- name: Join the tailnet
+  ansible.builtin.command: >-
+    tailscale up --authkey={{ lookup('ansible.builtin.env', 'TS_AUTHKEY') }}
+    --hostname={{ inventory_hostname }}
+  when:
+    - (tailscale_status.stdout | from_json).BackendState | default('') != 'Running'
+    - lookup('ansible.builtin.env', 'TS_AUTHKEY') | length > 0
+  changed_when: true
+  no_log: true

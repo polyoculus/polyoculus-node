@@ -1,0 +1,84 @@
+---
+- name: Base packages
+  community.general.pacman:
+    name: "{{ base_packages }}"
+    state: present
+    update_cache: true
+
+# We boot /boot/Image-nano; Arch's stock kernel would only rebuild an unused initramfs on updates
+- name: Stock kernel removed
+  community.general.pacman:
+    name: linux-aarch64
+    state: absent
+
+- name: Hostname
+  ansible.builtin.hostname:
+    name: "{{ inventory_hostname }}"
+
+- name: Timezone
+  community.general.timezone:
+    name: "{{ timezone }}"
+
+- name: Locale generated
+  community.general.locale_gen:
+    name: en_US.UTF-8
+
+- name: Default locale
+  ansible.builtin.copy:
+    content: "LANG=en_US.UTF-8\n"
+    dest: /etc/locale.conf
+    mode: "0644"
+
+# No RTC battery: the clock is wrong until NTP syncs, and the telescopes need it right.
+# chrony steps the clock on boot and keeps all Nanos tight; timesyncd would conflict with it.
+- name: Timesyncd off
+  ansible.builtin.systemd_service:
+    name: systemd-timesyncd
+    state: stopped
+    enabled: false
+
+- name: Chrony config
+  ansible.builtin.copy:
+    src: chrony.conf
+    dest: /etc/chrony.conf
+    mode: "0644"
+  notify: Restart chronyd
+
+- name: Chronyd running
+  ansible.builtin.systemd_service:
+    name: chronyd
+    state: started
+    enabled: true
+
+- name: Zram swap (half of RAM, compressed, no SD writes)
+  ansible.builtin.copy:
+    content: "[zram0]\nzram-size = ram / 2\n"
+    dest: /etc/systemd/zram-generator.conf
+    mode: "0644"
+
+- name: Alarm user in wheel (sudo) and uucp (serial ports for the mounts)
+  ansible.builtin.user:
+    name: alarm
+    groups: [wheel, uucp]
+    append: true
+
+- name: Sudo for wheel
+  ansible.builtin.copy:
+    content: "%wheel ALL=(ALL:ALL) ALL\n"
+    dest: /etc/sudoers.d/wheel
+    mode: "0440"
+    validate: visudo -cf %s
+
+- name: SSH keys for the alarm user
+  ansible.posix.authorized_key:
+    user: alarm
+    key: "{{ lookup('ansible.builtin.file', item) }}"
+  with_fileglob: "{{ playbook_dir }}/files/authorized_keys/*.pub"
+
+- name: Sshd password login setting
+  ansible.builtin.copy:
+    content: "PasswordAuthentication {{ 'yes' if ssh_password_auth else 'no' }}\nPermitRootLogin no\n"
+    dest: /etc/ssh/sshd_config.d/10-nano.conf
+    mode: "0644"
+    validate: sshd -t -f %s
+  notify: Reload sshd

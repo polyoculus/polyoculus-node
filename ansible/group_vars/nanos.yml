@@ -1,0 +1,20 @@
+timezone: UTC  # observatory convention; the Nanos move from Florida to California anyway
+
+base_packages:
+  - sudo
+  - git
+  - vim
+  - htop
+  - rsync
+  - python
+  - python-pip
+  - python-numpy
+  - uv
+  - chrony
+  - zram-generator
+
+# Keep password SSH until every Nano has keys in files/authorized_keys, or you lock yourself out
+ssh_password_auth: true
+
+# volatile = logs live in RAM (saves the SD card, lost on reboot); persistent = kept on the card
+journal_storage: volatile

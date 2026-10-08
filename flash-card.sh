@@ -53,11 +53,11 @@ LABEL nano
     MENU LABEL Arch Linux ARM ($KREL)
     LINUX /boot/Image-nano
     FDT /boot/dtbs-nano/tegra210-p3450-0000.dtb
-    APPEND root=PARTUUID=$PARTUUID rw rootwait quiet video=HDMI-A-1:1920x1080@60e console=ttyS0,115200n8 console=tty0
+    APPEND root=PARTUUID=$PARTUUID rw rootwait rootflags=noatime quiet video=HDMI-A-1:1920x1080@60e console=ttyS0,115200n8 console=tty0
 EOF
 
 echo "$HOST" > "$MNT/etc/hostname"
-ln -sf /usr/share/zoneinfo/America/New_York "$MNT/etc/localtime"
+ln -sf /usr/share/zoneinfo/UTC "$MNT/etc/localtime"
 install -m755 setup.sh "$MNT/root/setup.sh"
 
 sync

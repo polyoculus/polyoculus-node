@@ -1,0 +1,21 @@
+---
+# SD cards die from writes. Cut the routine ones: logs, access times.
+- name: Journald drop-in directory
+  ansible.builtin.file:
+    path: /etc/systemd/journald.conf.d
+    state: directory
+    mode: "0755"
+
+- name: Journald storage
+  ansible.builtin.copy:
+    content: "[Journal]\nStorage={{ journal_storage }}\nRuntimeMaxUse=64M\nSystemMaxUse=64M\n"
+    dest: /etc/systemd/journald.conf.d/10-sd-card.conf
+    mode: "0644"
+  notify: Restart journald
+
+# Reading a file normally writes its access time back to the card
+- name: Root mounted noatime (takes effect next boot)
+  ansible.builtin.replace:
+    path: /boot/extlinux/extlinux.conf
+    regexp: '^(\s*APPEND (?:(?!rootflags=).)*rootwait)(?!.*rootflags=)'
+    replace: '\1 rootflags=noatime'

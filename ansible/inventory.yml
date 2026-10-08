@@ -1,0 +1,14 @@
+# One entry per Nano. Hostnames resolve over Tailscale once a Nano has joined;
+# before that, add `ansible_host: <ip>` under the host.
+nanos:
+  hosts:
+    nano-01:
+    nano-02:
+    nano-03:
+    nano-04:
+    nano-05:
+    nano-06:
+    nano-07:
+    nano-08:
+  vars:
+    ansible_user: alarm
