@@ -1,0 +1,14 @@
+# Ignore parts of the docs
+docs/_build
+docs/source/api
+docs/source/_templates
+docs/source/_static
+
+# Ignore the .venv folder
+.venv/
+
+# Ignore the pycache directory
+src/__pycache__
+
+# Ignore all .bak files
+*.bak
