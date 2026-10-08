@@ -3,9 +3,6 @@
 Modern Arch Linux ARM (mainline kernel 7.1) on the original 2019 Jetson Nano dev kit
 (p3450, 4 GB), replacing NVIDIA's end-of-life Ubuntu 18.04 / JetPack 4.6.
 
-**No CUDA.** CUDA on the Nano only exists in NVIDIA's L4T kernel (JetPack 4.6, CUDA 10.2).
-The mainline GPU driver (nouveau) gives OpenGL, not CUDA.
-
 ## Setting up a Nano
 
 On an x86_64 Linux machine:
