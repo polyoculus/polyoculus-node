@@ -13,9 +13,17 @@
     mode: "0644"
   notify: Restart journald
 
-# Reading a file normally writes its access time back to the card
-- name: Root mounted noatime (takes effect next boot)
+# Reading a file normally writes its access time back to the card. noatime belongs in fstab
+# (systemd remounts / with it early in boot): as rootflags=noatime on the kernel command line,
+# ext4 rejects it and the kernel panics before mounting root.
+- name: No rootflags=noatime on the kernel command line (it stops the Nano booting)
   ansible.builtin.replace:
     path: /boot/extlinux/extlinux.conf
-    regexp: '^(\s*APPEND (?:(?!rootflags=).)*rootwait)(?!.*rootflags=)'
-    replace: '\1 rootflags=noatime'
+    regexp: ' rootflags=noatime'
+    replace: ''
+
+- name: Root mounted noatime (takes effect next boot)
+  ansible.builtin.lineinfile:
+    path: /etc/fstab
+    regexp: '^\S+\s+/\s'
+    line: "{{ ansible_facts.cmdline.root }} / ext4 rw,noatime 0 0"
