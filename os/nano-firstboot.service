@@ -1,0 +1,17 @@
+[Unit]
+Description=First-boot setup of a freshly flashed Nano (polyoculus-node)
+After=network-online.target systemd-timesyncd.service
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/nano-firstboot
+Restart=on-failure
+RestartSec=60
+StandardOutput=journal+console
+StandardError=journal+console
+TimeoutStartSec=infinity
+
+[Install]
+WantedBy=multi-user.target
