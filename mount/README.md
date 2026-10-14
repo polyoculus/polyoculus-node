@@ -1,100 +1,92 @@
-# pyMountOperator
+# mount (pyMountOperator)
 
+Python control of an INDI telescope mount: the lab's iOptron CEM70s through the
+`indi_ioptronv3_telescope` driver, via pyindi-client. `guide/` uses it for guide pulses; it's
+also how to point a mount by hand ([docs/observing.md](../docs/observing.md#point-the-mount)).
 
-A simple package to facillitate communication with a indi-compatible mount through pyindi-client.
+It talks to an **indiserver**, not to the serial port directly: on a node,
+`indiserver.service` runs the iOptron driver on port 7624 from boot. Elsewhere, start one:
+`indiserver -v indi_ioptronv3_telescope` (or `indi_simulator_telescope` to test without a mount).
 
-`MountOperator` covers what a node needs: `connect` / `disconnect` (sets `DEVICE_PORT` and the
-baud rate when the driver has them), `unpark` / `park`, `set_tracking`, `move_coord` (slew to
-RA/Dec, then track; or SLEW / SYNC), `get_EOD_COORD`, `guide` (timed guide pulses),
-`move_dir` with `set_slew_speed`, `go_home`, and the abort calls. All of it is tested against
-`indi_simulator_telescope`; `uv run pytest` runs the unit tests without a server.
+## Use
 
+```python
+import sys; sys.path.insert(0, "src")      # from mount/; guide/ sets this up for itself
+from MountOperator import MountOperator
+from mountConfiguration import MountConfiguration
+from coordinate import EOD_COORD
+from cardinalDirection import CardinalDirection
 
-
-
-### Setup
-
-- create a venv, and activate it with python3 and source. Then, use pip to install 
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -Ur requirements.txt
+m = MountOperator(config=MountConfiguration(DEVICE_PORT="/dev/mount"))
+m.connect()                                   # server, device, port/baud, CONNECT
+m.unpark()
+m.move_coord(EOD_COORD(5.919, 7.407))         # RA hours, Dec degrees (of date); slew then track
+m.guide(CardinalDirection.West, ms=500)       # guide pulse
+print(m.get_EOD_COORD())
+m.park()
+m.disconnect()
 ```
 
-or in fish shell 
-```fish
-python3 -m venv .venv
-source .venv/bin/activate.fish
-pip install -Ur requirements.txt
+### MountOperator
+
+| Method | |
+|---|---|
+| `connect()` / `disconnect()` | connect to indiserver, wait for the device, set `DEVICE_PORT` and baud rate if the driver has them, connect the mount |
+| `unpark()` / `park()` | park also stops tracking; `wait=False` returns immediately |
+| `set_tracking(on)` | sidereal tracking on/off |
+| `move_coord(coord, mode=MountMode.TRACK)` | point at RA/Dec: `TRACK` slews then tracks, `SLEW` just slews, `SYNC` tells the mount it's already there |
+| `get_EOD_COORD()` | current pointing (RA hours, Dec degrees, JNow) |
+| `guide(direction, ms)` | timed guide pulse at the guide rate |
+| `move_dir(direction, timeout)` + `set_slew_speed(n)` | manual motion for a number of seconds |
+| `go_home()` | the mount's home position |
+| `move_abort_on()` / `move_abort_off()` | stop motion gracefully / clear the abort |
+| `move_emergency_abort()` | stop as fast as possible |
+
+### MountConfiguration
+
+| Field | Default | |
+|---|---|---|
+| `INDI_HOST`, `INDI_PORT` | `localhost`, `7624` | the indiserver (a remote Nano's works too: `nano-03.local`) |
+| `DEVICE_NAME` | `iOptronV3` | INDI device name (`Telescope Simulator` for the simulator) |
+| `DEVICE_PORT` | `None` | serial port; `None` keeps the driver's own. On a node: `/dev/mount` |
+| `BAUD_RATE` | `115200` | |
+| `TIMEOUT`, `SLEW_TIMEOUT` | `30`, `180` s | property waits, slews/parks |
+
+`src/main.py` is an old demo (moves the mount N/W/S/E, then home).
+
+## Setup and tests
+
+```sh
+uv sync                 # on a node, Ansible already did this
+uv run pytest           # unit tests: PyIndi is mocked, no server needed
 ```
 
+`uv.lock` is the source of truth for dependencies (`requirements.txt` is an old `pip freeze`).
+pyindi-client compiles from source: it needs `swig`, a C++ compiler and libindi's headers
+(`libindi` on Arch, `libindi-dev` on Debian/Ubuntu).
 
-- if you ever add a new package, ensure that you add it into requirements.txt using the following commands:
+To try it against INDI's simulator:
 
-```bash
-pip freeze > requirements.txt
+```sh
+indiserver indi_simulator_telescope &
+uv run python -c "import sys; sys.path.insert(0,'src')
+from MountOperator import MountOperator; from mountConfiguration import MountConfiguration
+m = MountOperator(config=MountConfiguration(DEVICE_NAME='Telescope Simulator')); m.connect(); m.unpark(); print(m.get_EOD_COORD())"
 ```
 
-this ensures that we maintain a universal package list across various computers, and that no one has to spend time figuring out what package was added by the other guy.
+## API docs (Sphinx)
 
+Docstrings are written for Sphinx autodoc:
 
-### Running the program
-- To run the demo (main.py), you need to have indiserver installed. Search it up for your OS, and install it. Then try the following commands below
-
-in a new window
-
-```bash
-indiserver -v indi_ioptronv3_telescope
+```sh
+uv run --with sphinx sphinx-apidoc -o docs/source/api src
+uv run --with sphinx make -C docs html        # docs/_build/html; latexpdf needs LaTeX
 ```
 
-and in your project, with the environment activated (source .venv/bin.activate)
+Rerun `sphinx-apidoc` after adding or removing source files. Format code with
+[Ruff](https://docs.astral.sh/ruff/formatter/) (`uvx ruff format`).
 
-```bash
-python3 main.py
-```
+## Not done yet
 
-### Documentation
-
-- Documentation is done through Sphinx. See [Sphinx's Documentation](https://www.sphinx-doc.org/en/master/index.html) for more information on how to do this. As long as you stick to the proper formatting when documenting your functions, classes, variables, etc, there should be no issue with sphinx detecting it.
-
-- to build documentation FOR THIS SPECIFIC PROJECT:
-
-ensure that all dependencies are installed from requirements.txt
-
-```bash
-cd docs
-sphinx-apidoc -o ./source/api ../.
-make clean
-make latexpdf
-```
-latexpdf generates a pdf document using latex, and the doc will be located in '_build/latex/'. Ensure you have all dependencies for latex installed for it to work. if you can't use latex, try building an epub or html instead.
-
-> You will have to run `sphinx-apidoc` in the docs folder each time you add or delete source files.
-
-> To view full project documentation, refer to PolyOculusDocs
-
-## Formatting
-
-- use Ruff for formatting python. [See Ruff](https://docs.astral.sh/ruff/formatter/)
-
-### Things that are complete
-- below is a list of features that are complete
-    - connecting with indiserver 
-    - basic documentation
- - Below is a list of features that are in progress
-    - Connecting to the device (Mount)
-        - recieving a stream of RA and Dec coordinates (where the mount is pointed) 
-        - arbitrary move commands (e.x. move until I say stop)
-
-### Things that are in progress
-
-
-### Things to add
-- below is a list of features that have yet to be completed. These are listed in order of priority.
-    - basic testing with pytests
-    - error handling for all our functions
-  - Coordinate move commands (e.x. move to a specific RA and Dec)
-  - sending complex move commands
-  -  pulse guide commands (more special than the other move commands because it requires changing the slew rate as we approach the target. This ensures a higher accuracy, and that we reach it properly)
-- backlash compensation in case it is not already handled by the mount or driver [see this link from wikipedia to see what I mean](https://en.wikipedia.org/wiki/Backlash_(engineering))
+- A command-line tool for pointing/parking (today: the snippet above).
+- Backlash compensation, if the mount/driver doesn't handle it.

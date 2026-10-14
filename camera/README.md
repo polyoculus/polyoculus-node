@@ -10,9 +10,12 @@ and to set exposure in 1 us steps (UVC's own control only has 100 us steps).
 
 ## Setup
 
+On a node, Ansible has already done this (`~/polyoculus-node/camera/.venv`). Elsewhere:
+
     uv venv .venv && uv pip install -p .venv -r requirements.txt
 
-You need `v4l2-ctl` (v4l-utils) and, for `preview`, gstreamer.
+You need `v4l2-ctl` (v4l-utils) and, for `preview`, gstreamer and a display. Your user must be
+in `video` to open the camera.
 
 ## Usage
 
@@ -40,6 +43,8 @@ Closed-loop spot steering with the lab's piezo FSM controller (serial, 19200 bau
 Calibrate once per session (after anything in the optics moves). The model is
 `cx = a0 + a1 vx + a2 vy + a3 vx^2` and `cy = b0 + b1 vx + b2 vy + b3 vy^2`; `goto` and
 `track` use it for direction and the camera for the actual error. Default port is
+`/dev/fsm` when it exists (the node's udev name for the mirror's USB port, see
+[docs/operations.md](../docs/operations.md#usb-ports-for-the-mount-and-mirror)), else
 `/dev/ttyUSB0` (`--port` to change); your user needs to be in the `uucp` group to open it.
 
 Output goes to `captures/` (git-ignored). FITS files hold true 12-bit counts (0..4094).
