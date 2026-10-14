@@ -78,11 +78,16 @@
     mode: "0440"
     validate: visudo -cf %s
 
-- name: SSH keys for the alarm user
+# Exactly the keys in files/authorized_keys/: deleting someone's .pub revokes their access.
+# Never with an empty set, which would lock everyone out but the console.
+- name: SSH keys for the alarm user (exactly files/authorized_keys/*.pub)
   ansible.posix.authorized_key:
     user: alarm
-    key: "{{ lookup('ansible.builtin.file', item) }}"
-  with_fileglob: "{{ playbook_dir }}/files/authorized_keys/*.pub"
+    key: "{{ query('ansible.builtin.file', *base_ssh_keys) | join('\n') }}"
+    exclusive: true
+  vars:
+    base_ssh_keys: "{{ query('ansible.builtin.fileglob', playbook_dir ~ '/files/authorized_keys/*.pub') }}"
+  when: base_ssh_keys | length > 0
 
 - name: Sshd password login setting
   ansible.builtin.copy:
@@ -91,3 +96,33 @@
     mode: "0644"
     validate: sshd -t -f %s
   notify: Reload sshd
+
+# mDNS: every Nano answers to <hostname>.local on the lab network, so Ansible, chrony and people
+# find them by name with no IP bookkeeping (Arch ARM's networkd + resolved do the work)
+- name: Resolved drop-in directory
+  ansible.builtin.file:
+    path: /etc/systemd/resolved.conf.d
+    state: directory
+    mode: "0755"
+
+- name: Resolved answers and resolves .local
+  ansible.builtin.copy:
+    content: "[Resolve]\nMulticastDNS=yes\n"
+    dest: /etc/systemd/resolved.conf.d/10-mdns.conf
+    mode: "0644"
+  notify: Restart resolved
+
+- name: Network drop-in directories
+  ansible.builtin.file:
+    path: "/etc/systemd/network/{{ item }}.network.d"
+    state: directory
+    mode: "0755"
+  loop: [en, eth]
+
+- name: MDNS on the wired interfaces
+  ansible.builtin.copy:
+    content: "[Network]\nMulticastDNS=yes\n"
+    dest: "/etc/systemd/network/{{ item }}.network.d/10-mdns.conf"
+    mode: "0644"
+  loop: [en, eth]
+  notify: Reload networkd

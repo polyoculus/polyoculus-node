@@ -19,8 +19,12 @@ base_packages:
   - i2c-tools
   - lm_sensors
 
-# Nodes have no passwords: SSH is Tailscale SSH or the keys in files/authorized_keys
+# Nodes have no passwords: SSH is the keys in files/authorized_keys (or Tailscale SSH if on)
 ssh_password_auth: false
+
+# Tailscale is off for now (the group decided against it); nodes are reached as <name>.local
+# over mDNS on the lab network. true = join the tailnet (README "Access").
+tailscale_enabled: false
 
 # volatile = logs live in RAM (saves the SD card, lost on reboot); persistent = kept on the card
 journal_storage: volatile

@@ -8,3 +8,12 @@
   ansible.builtin.systemd_service:
     name: sshd
     state: reloaded
+
+- name: Restart resolved
+  ansible.builtin.systemd_service:
+    name: systemd-resolved
+    state: restarted
+
+- name: Reload networkd
+  ansible.builtin.command: networkctl reload
+  changed_when: true

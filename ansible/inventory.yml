@@ -1,5 +1,5 @@
-# One entry per Nano. Hostnames resolve over Tailscale once a Nano has joined;
-# before that, add `ansible_host: <ip>` under the host.
+# One entry per Nano. Nanos answer to <name>.local on the lab network (mDNS), so no IPs are
+# needed; give a host `ansible_host: <ip>` only if mDNS doesn't reach it.
 nanos:
   hosts:
     nano-01:
@@ -12,3 +12,4 @@ nanos:
     nano-08:
   vars:
     ansible_user: alarm
+    ansible_host: "{{ inventory_hostname }}.local"

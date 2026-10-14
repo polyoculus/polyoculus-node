@@ -1,7 +1,7 @@
 #!/bin/bash
 # Flash Arch Linux ARM + the custom kernel onto a Jetson Nano SD card.
 #   sudo ./flash-card.sh /dev/sdX nano-02
-#   sudo TS_AUTHKEY=tskey-... ./flash-card.sh /dev/sdX nano-02   # also join Tailscale on first boot
+#   sudo TS_AUTHKEY=tskey-... ./flash-card.sh /dev/sdX nano-02   # join Tailscale on first boot (if tailscale_enabled)
 # Run ./build-kernel.sh first (as your normal user). ERASES the card's first partition.
 # The card sets itself up on first boot (firstboot.sh): it only needs Ethernet and power.
 set -euo pipefail
@@ -18,7 +18,6 @@ MNT=$(mktemp -d)
 [ -f "$B/out/Image-nano" ] || { echo "no kernel in build/out: run ./build-kernel.sh first"; exit 1; }
 KREL=$(ls "$B/out/lib/modules")
 grep -qE "^    $HOST:" "$REPO/ansible/inventory.yml" || { echo "$HOST is not in ansible/inventory.yml, add it first"; exit 1; }
-[ -n "${TS_AUTHKEY:-}" ] || echo "No TS_AUTHKEY: $HOST joins Tailscale on a later 'TS_AUTHKEY=... ansible-playbook site.yml'."
 
 lsblk -o NAME,SIZE,FSTYPE,LABEL,MODEL "$DISK"
 read -rp "Erase $DISK and install Arch as '$HOST'? Type yes: " ok

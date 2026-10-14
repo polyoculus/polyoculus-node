@@ -3,7 +3,7 @@
 # reference ID) and the rest follow it, so the fleet's clocks still agree with each other.
 pool pool.ntp.org iburst
 {% for host in groups['nanos'] | difference([inventory_hostname]) | sort %}
-server {{ host }} iburst
+server {{ host }}.local iburst
 {% endfor %}
 local stratum 10 orphan
 
