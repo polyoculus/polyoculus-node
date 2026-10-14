@@ -1,0 +1,18 @@
+# The nodes, one per line: name, then (optionally) the guide camera serials and board MAC
+# addresses that make a Nano that node. A Nano names itself from this at every boot
+# (os/identity.sh), so cards are interchangeable: put any card in the Nano on telescope 3 and it
+# becomes that node. Ansible's inventory is this file too (inventory.py).
+#
+# The login screen of each Nano shows its camera serial and MAC. Camera serials are best (the
+# camera stays with its telescope); a MAC pins the board instead. A node with neither keeps the
+# name its card was flashed with.
+#
+# name     camera serial / MAC ...
+nano-01
+nano-02
+nano-03
+nano-04
+nano-05
+nano-06
+nano-07
+nano-08

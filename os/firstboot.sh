@@ -38,7 +38,7 @@ pacman -Syu --noconfirm --needed python sudo git ansible
 step "ansible/site.yml for $HOST (local run)"
 cd "$REPO/ansible"
 [ -f /root/ts-authkey ] && TS_AUTHKEY=$(cat /root/ts-authkey) && export TS_AUTHKEY
-ansible-playbook site.yml --connection local --limit "$HOST"
+POLYOCULUS_LOCAL_HOST="$HOST" ansible-playbook site.yml --limit "$HOST"
 rm -f /root/ts-authkey
 
 step "done"

@@ -1,0 +1,13 @@
+[Unit]
+Description=Name this Nano from its guide camera or board (polyoculus-node)
+DefaultDependencies=no
+After=local-fs.target systemd-udev-trigger.service
+Before=network-pre.target systemd-networkd.service systemd-resolved.service
+Wants=network-pre.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/polyoculus-identity
+
+[Install]
+WantedBy=multi-user.target

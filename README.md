@@ -20,9 +20,12 @@ guide/               autoguiding: camera centroid -> mount guide pulses (+ an IN
 
 ## The rules
 
-**The card is the node.** The Nanos are identical boards: a card's hostname is what makes it
-nano-03, and any card works in any Nano. So there is no per-node
-configuration anywhere; everything in `ansible/` is the same for every card.
+**Cards are interchangeable.** The Nanos are identical boards, and a Nano names itself at every
+boot from the hardware it's attached to: `ansible/nodes.txt` maps guide camera serials (the
+camera stays with its telescope) and board MACs to node names. Put any card in the Nano on
+telescope 3 and it becomes that node; nobody renames anything. A Nano not in the table keeps
+the name its card was flashed with, or calls itself `nano-<last 4 of MAC>`. Its login screen
+shows the camera serial and MAC to add. There is no other per-node configuration anywhere.
 
 **Nothing lives only on the SD card.** SD cards die. Every Nano must be rebuildable from this
 repo in ~15 minutes, so calibration files and observation data have a copy off the card. Keep a
@@ -39,7 +42,7 @@ On an x86_64 Linux machine:
 ```sh
 cd os
 ./build-kernel.sh                         # downloads the published kernel, or compiles if there is none
-sudo ./flash-card.sh /dev/sdX nano-03     # check the device with lsblk first!
+sudo ./flash-card.sh /dev/sdX            # check the device with lsblk first! (optional: a name)
 ```
 
 `flash-card.sh` copies this repo, uncommitted changes included, to `/home/alarm/polyoculus-node`
@@ -60,8 +63,7 @@ cd ansible   # from the repo root
 uvx --from ansible ansible-playbook site.yml --limit nano-03
 ```
 
-Ansible reaches Nanos as `<name>.local`; if mDNS can't reach one, give it `ansible_host: <ip>`
-in `inventory.yml`.
+Ansible's host list is `nodes.txt` (via `inventory.py`), reaching each Nano as `<name>.local`.
 Rerunning `site.yml` is always safe; it only changes what differs. Note that deleting a line
 from the config does not undo it on the Nanos: write `state: absent` instead.
 
@@ -74,7 +76,7 @@ a secret.
   public key and run `site.yml`; removing = delete their file and run it again (the Nanos get
   exactly the keys in that folder).
 - **Names:** every Nano answers to `<name>.local` on the lab network (mDNS), e.g.
-  `ssh alarm@nano-03.local`, and that's how Ansible finds them (`inventory.yml`). Your laptop
+  `ssh alarm@nano-03.local`, and that's how Ansible finds them (`nodes.txt`). Your laptop
   needs mDNS (macOS: built in; Linux: systemd-resolved with mDNS on, or avahi + nss-mdns).
 - **Console:** keyboard + HDMI, log in as `alarm`, no password.
 

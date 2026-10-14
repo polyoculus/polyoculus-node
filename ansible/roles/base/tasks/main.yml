@@ -11,9 +11,26 @@
     name: linux-aarch64
     state: absent
 
-- name: Hostname
-  ansible.builtin.hostname:
-    name: "{{ inventory_hostname }}"
+# The Nano names itself at every boot from nodes.txt (camera serial, then board MAC, then the
+# name it was flashed with), so Ansible never sets the hostname
+- name: Identity script
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../os/identity.sh"
+    dest: /usr/local/bin/polyoculus-identity
+    mode: "0755"
+
+- name: Identity service
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../os/polyoculus-identity.service"
+    dest: /etc/systemd/system/polyoculus-identity.service
+    mode: "0644"
+  register: base_identity_unit
+
+- name: Identity service enabled
+  ansible.builtin.systemd_service:
+    name: polyoculus-identity
+    enabled: true
+    daemon_reload: "{{ base_identity_unit.changed }}"
 
 - name: Timezone
   community.general.timezone:

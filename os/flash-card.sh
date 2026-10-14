@@ -1,6 +1,7 @@
 #!/bin/bash
 # Flash Arch Linux ARM + the custom kernel onto a Jetson Nano SD card.
-#   sudo ./flash-card.sh /dev/sdX nano-02
+#   sudo ./flash-card.sh /dev/sdX            # name comes from the Nano it boots in (ansible/nodes.txt)
+#   sudo ./flash-card.sh /dev/sdX nano-02    # or give it one
 #   sudo TS_AUTHKEY=tskey-... ./flash-card.sh /dev/sdX nano-02   # join Tailscale on first boot (if tailscale_enabled)
 # Run ./build-kernel.sh first (as your normal user). ERASES the card's first partition.
 # The card sets itself up on first boot (firstboot.sh): it only needs Ethernet and power.
@@ -8,8 +9,8 @@ set -euo pipefail
 cd "$(dirname "$0")"
 REPO=$(cd .. && pwd)
 B=$PWD/build
-DISK=${1:?usage: sudo $0 /dev/sdX <hostname>}
-HOST=${2:?usage: sudo $0 /dev/sdX <hostname>}
+DISK=${1:?usage: sudo $0 /dev/sdX [hostname]}
+HOST=${2:-}
 MNT=$(mktemp -d)
 
 [ "$(id -u)" = 0 ] || { echo "run with sudo"; exit 1; }
@@ -17,10 +18,12 @@ MNT=$(mktemp -d)
 [ "$(lsblk -dno RM "$DISK")" = 1 ] || { echo "$DISK is not removable, refusing"; exit 1; }
 [ -f "$B/out/Image-nano" ] || { echo "no kernel in build/out: run ./build-kernel.sh first"; exit 1; }
 KREL=$(ls "$B/out/lib/modules")
-grep -qE "^    $HOST:" "$REPO/ansible/inventory.yml" || { echo "$HOST is not in ansible/inventory.yml, add it first"; exit 1; }
+if [ -n "$HOST" ] && ! grep -qE "^$HOST([[:space:]]|$)" "$REPO/ansible/nodes.txt"; then
+    echo "Note: $HOST is not in ansible/nodes.txt, so Ansible from your laptop won't know it."
+fi
 
 lsblk -o NAME,SIZE,FSTYPE,LABEL,MODEL "$DISK"
-read -rp "Erase $DISK and install Arch as '$HOST'? Type yes: " ok
+read -rp "Erase $DISK and install Arch as '${HOST:-<named at boot>}'? Type yes: " ok
 [ "$ok" = yes ] || exit 1
 umount "$DISK"?* 2>/dev/null || true
 
@@ -62,7 +65,8 @@ LABEL nano
     APPEND root=PARTUUID=$PARTUUID rw rootwait quiet module_blacklist=snd_hda_tegra,tegra210_adma,tegra_aconnect,nouveau video=HDMI-A-1:1920x1080@60e console=ttyS0,115200n8 console=tty0
 EOF
 
-echo "$HOST" > "$MNT/etc/hostname"
+# Otherwise polyoculus-identity names it on first boot (nodes.txt, else nano-<MAC>)
+[ -z "$HOST" ] || echo "$HOST" > "$MNT/etc/hostname"
 # noatime goes here, not in rootflags=: ext4 rejects it there and the kernel panics.
 # systemd remounts / with these options early in boot.
 echo "PARTUUID=$PARTUUID / ext4 rw,noatime 0 0" >> "$MNT/etc/fstab"
@@ -82,10 +86,13 @@ chown -R 1000:1000 "$MNT/home/alarm/polyoculus-node"   # alarm
 install -m755 firstboot.sh "$MNT/usr/local/bin/nano-firstboot"
 install -m644 nano-firstboot.service "$MNT/etc/systemd/system/nano-firstboot.service"
 ln -sf /etc/systemd/system/nano-firstboot.service "$MNT/etc/systemd/system/multi-user.target.wants/nano-firstboot.service"
+install -m755 identity.sh "$MNT/usr/local/bin/polyoculus-identity"
+install -m644 polyoculus-identity.service "$MNT/etc/systemd/system/polyoculus-identity.service"
+ln -sf /etc/systemd/system/polyoculus-identity.service "$MNT/etc/systemd/system/multi-user.target.wants/polyoculus-identity.service"
 if [ -n "${TS_AUTHKEY:-}" ]; then
     (umask 077; echo "$TS_AUTHKEY" > "$MNT/root/ts-authkey")   # deleted once used
 fi
 
 sync
-echo "Done: $HOST on $DISK. Put it in the Nano, plug in Ethernet (and HDMI to watch), power on."
+echo "Done: ${HOST:-unnamed card} on $DISK. Put it in the Nano, plug in Ethernet (and HDMI to watch), power on."
 echo "It sets itself up and reboots (~15 min). Then log in as alarm."
