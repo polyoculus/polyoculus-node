@@ -1,0 +1,54 @@
+---
+# The node software in this repo (camera/, mount/, guide/), installed for the alarm user.
+# pyindi-client has no aarch64 wheel and compiles here: base-devel + swig + libindi's headers.
+- name: Build and camera tools
+  community.general.pacman:
+    name: [base-devel, swig, v4l-utils]
+    state: present
+
+# Push this checkout (uncommitted changes too, minus .gitignore'd files) from the machine
+# running Ansible, so the Nanos need no GitHub credentials. Data in captures/ and the venvs
+# stay. Skipped on a card's first boot, which runs from the copy flash-card.sh put there.
+- name: Repo synced from the controller
+  ansible.posix.synchronize:
+    src: "{{ playbook_dir }}/../"
+    dest: /home/alarm/polyoculus-node/
+    delete: true
+    rsync_opts:
+      - "--filter=:- .gitignore"
+      - "--exclude=captures/"
+      - "--exclude=.venv/"
+  become: false
+  when: ansible_connection != 'local'
+
+- name: Python environments (guide, mount)
+  ansible.builtin.command: uv sync --locked
+  args:
+    chdir: "/home/alarm/polyoculus-node/{{ item }}"
+  loop: [guide, mount]
+  become: true
+  become_user: alarm
+  environment:
+    UV_PYTHON_PREFERENCE: only-system
+  register: software_uv_sync
+  changed_when: "'Installed' in software_uv_sync.stderr or 'Uninstalled' in software_uv_sync.stderr"
+
+# camera/ has a plain requirements.txt (see camera/README.md)
+- name: Camera venv
+  ansible.builtin.command: uv venv .venv
+  args:
+    chdir: /home/alarm/polyoculus-node/camera
+    creates: /home/alarm/polyoculus-node/camera/.venv
+  become: true
+  become_user: alarm
+  environment:
+    UV_PYTHON_PREFERENCE: only-system
+
+- name: Camera packages
+  ansible.builtin.command: uv pip install -p .venv -r requirements.txt
+  args:
+    chdir: /home/alarm/polyoculus-node/camera
+  become: true
+  become_user: alarm
+  register: software_uv_camera
+  changed_when: "'Installed' in software_uv_camera.stderr or 'Uninstalled' in software_uv_camera.stderr"

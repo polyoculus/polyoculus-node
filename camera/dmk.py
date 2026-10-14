@@ -519,7 +519,7 @@ def main():
     fs = p.add_subparsers(dest="action", required=True)
 
     def fsm_common(p, settle):
-        p.add_argument("--port", default="/dev/ttyUSB0", help="mirror controller serial port")
+        p.add_argument("--port", default=fsm.DEFAULT_PORT, help="mirror controller serial port")
         p.add_argument("-e", "--exposure", type=float, default=500, help="us")
         p.add_argument("-g", "--gain", type=float, default=0.0, help="dB, 0..48")
         p.add_argument("--settle", type=float, default=settle,

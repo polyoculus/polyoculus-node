@@ -1,12 +1,14 @@
 ---
 # Bring every Nano to the state described here. Safe to rerun any time.
-#   ansible-playbook site.yml -K                  # all Nanos
-#   ansible-playbook site.yml -K --limit nano-03  # one Nano (e.g. after swapping its SD card)
+#   ansible-playbook site.yml                  # all Nanos
+#   ansible-playbook site.yml --limit nano-03  # one Nano (e.g. after swapping its SD card)
 - name: Configure Nanos
   hosts: nanos
   become: true
   roles:
     - base
     - sd-wear
+    - hardware
     - tailscale
     - indi
+    - software

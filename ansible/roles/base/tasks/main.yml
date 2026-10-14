@@ -38,8 +38,8 @@
     enabled: false
 
 - name: Chrony config
-  ansible.builtin.copy:
-    src: chrony.conf
+  ansible.builtin.template:
+    src: chrony.conf.j2
     dest: /etc/chrony.conf
     mode: "0644"
   notify: Restart chronyd
@@ -56,15 +56,24 @@
     dest: /etc/systemd/zram-generator.conf
     mode: "0644"
 
-- name: Alarm user in wheel (sudo) and uucp (serial ports for the mounts)
+# No passwords anywhere: nodes outlive the people who set them up, so there is nothing to
+# remember or hand over. Console login needs none; remote access is Tailscale SSH or the keys
+# below (sshd refuses empty passwords); root is locked and sudo asks for nothing.
+- name: Alarm user in wheel (sudo), uucp (mount and mirror serial ports) and video (guide camera)
   ansible.builtin.user:
     name: alarm
-    groups: [wheel, uucp]
+    groups: [wheel, uucp, video]
     append: true
+    password: ""
 
-- name: Sudo for wheel
+- name: Root locked (use sudo)
+  ansible.builtin.user:
+    name: root
+    password_lock: true
+
+- name: Sudo for wheel, no password
   ansible.builtin.copy:
-    content: "%wheel ALL=(ALL:ALL) ALL\n"
+    content: "%wheel ALL=(ALL:ALL) NOPASSWD: ALL\n"
     dest: /etc/sudoers.d/wheel
     mode: "0440"
     validate: visudo -cf %s

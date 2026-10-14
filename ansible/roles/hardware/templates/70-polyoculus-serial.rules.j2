@@ -1,0 +1,6 @@
+# Managed by Ansible (roles/hardware). Stable names for the serial adapters, by USB port.
+{% for name, path in usb_ports.items() if path %}
+SUBSYSTEM=="tty", ENV{ID_PATH}=="{{ path }}", SYMLINK+="{{ name }}"
+{% else %}
+# No ports recorded yet: set usb_ports in group_vars/nanos.yml
+{% endfor %}

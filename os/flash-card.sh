@@ -18,15 +18,7 @@ MNT=$(mktemp -d)
 [ -f "$B/out/Image-nano" ] || { echo "no kernel in build/out: run ./build-kernel.sh first"; exit 1; }
 KREL=$(ls "$B/out/lib/modules")
 grep -qE "^    $HOST:" "$REPO/ansible/inventory.yml" || { echo "$HOST is not in ansible/inventory.yml, add it first"; exit 1; }
-
-# One password for alarm and root (console login; SSH as root is off). NANO_PASSWORD skips the prompt.
-if [ -z "${NANO_PASSWORD:-}" ]; then
-    read -rsp "Password for alarm and root on $HOST: " NANO_PASSWORD; echo
-    read -rsp "Again: " again; echo
-    [ "$NANO_PASSWORD" = "$again" ] || { echo "passwords differ"; exit 1; }
-fi
-PWHASH=$(openssl passwd -6 -stdin <<< "$NANO_PASSWORD")
-[ -n "${TS_AUTHKEY:-}" ] || echo "No TS_AUTHKEY: $HOST won't join Tailscale until you run 'sudo tailscale up' on it."
+[ -n "${TS_AUTHKEY:-}" ] || echo "No TS_AUTHKEY: $HOST joins Tailscale on a later 'TS_AUTHKEY=... ansible-playbook site.yml'."
 
 lsblk -o NAME,SIZE,FSTYPE,LABEL,MODEL "$DISK"
 read -rp "Erase $DISK and install Arch as '$HOST'? Type yes: " ok
@@ -76,7 +68,9 @@ echo "$HOST" > "$MNT/etc/hostname"
 # systemd remounts / with these options early in boot.
 echo "PARTUUID=$PARTUUID / ext4 rw,noatime 0 0" >> "$MNT/etc/fstab"
 ln -sf /usr/share/zoneinfo/UTC "$MNT/etc/localtime"
-awk -F: -v OFS=: -v h="$PWHASH" '$1 == "root" || $1 == "alarm" { $2 = h } 1' "$MNT/etc/shadow" > "$MNT/etc/shadow.new"
+# No passwords: alarm logs in at the console with none (sshd refuses empty passwords, so remote
+# access is only Tailscale SSH or the keys in ansible/files/authorized_keys); root is locked.
+awk -F: -v OFS=: '$1 == "alarm" { $2 = "" } $1 == "root" { $2 = "!" } 1' "$MNT/etc/shadow" > "$MNT/etc/shadow.new"
 cat "$MNT/etc/shadow.new" > "$MNT/etc/shadow" && rm "$MNT/etc/shadow.new"
 
 # This repo, as it is on this laptop (uncommitted changes too), for first boot to run Ansible from

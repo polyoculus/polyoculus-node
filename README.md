@@ -10,7 +10,7 @@ os/build-kernel.sh   get the Nano kernel: download the published build, or compi
 os/flash-card.sh     write Arch + the kernel to an SD card
 os/firstboot.sh      runs on the Nano's first boot: package keys, then ansible/site.yml locally
 os/kernel/config     kernel config (Arch's, with the Nano's drivers built in)
-ansible/             everything after first boot: packages, time sync, Tailscale, INDI, SD-card wear
+ansible/             everything after first boot: packages, time sync, Tailscale, INDI, node software
 mount/               iOptron CEM70 control over INDI (was pyMountOperator)
 camera/              DMK 33UX273 guide camera + piezo steering mirror (was dmk-camera)
 guide/               autoguiding: camera centroid -> mount guide pulses (+ an INDI-simulator test)
@@ -18,11 +18,19 @@ guide/               autoguiding: camera centroid -> mount guide pulses (+ an IN
 
 `mount/` and `camera/` were separate repos; they were imported with their full history.
 
-## The rule: nothing lives only on the SD card
+## The rules
 
-SD cards die. Every Nano must be rebuildable from this repo in ~15 minutes, so anything unique
-to one Nano (settings in `ansible/host_vars/`, calibration files, observation data) has a copy
-off the card. Keep a pre-flashed spare card at the observatory.
+**The card is the node.** The Nanos are identical boards: a card's hostname (and its Tailscale
+identity) is what makes it nano-03, and any card works in any Nano. So there is no per-node
+configuration anywhere; everything in `ansible/` is the same for every card.
+
+**Nothing lives only on the SD card.** SD cards die. Every Nano must be rebuildable from this
+repo in ~15 minutes, so calibration files and observation data have a copy off the card. Keep a
+pre-flashed spare card at the observatory.
+
+**No passwords.** Nodes outlive the people who set them up, so there is nothing to remember or
+hand over: `alarm` logs in at the console with no password, root is locked, sudo asks for
+nothing, and remote access is by identity (see "Access").
 
 ## New Nano, or replacing a dead card
 
@@ -34,35 +42,99 @@ cd os
 sudo ./flash-card.sh /dev/sdX nano-03     # check the device with lsblk first!
 ```
 
-`flash-card.sh` asks for a password (for `alarm` and `root`) and copies this repo, uncommitted
-changes included, to `/home/alarm/polyoculus-node` on the card. Pass `TS_AUTHKEY=tskey-...`
-after `sudo` to have the Nano join Tailscale too.
+`flash-card.sh` copies this repo, uncommitted changes included, to `/home/alarm/polyoculus-node`
+on the card. Pass `TS_AUTHKEY=tskey-...` after `sudo` to have the Nano join Tailscale too.
 
 Put the card in the Nano, plug in Ethernet (and HDMI to watch), and power on. That's it: on first
 boot `nano-firstboot.service` waits for the network and clock, sets up pacman, installs Ansible
 and applies `site.yml` to itself, then reboots (~15 min). It retries every minute until it
 succeeds; the login screen says whether it is running, failed or done, and the full log is
-`/var/log/nano-firstboot.log`.
+`/var/log/nano-firstboot.log`. Then log in as `alarm` (no password).
 
-Later changes go out from your laptop as usual (Ansible runs through `uvx`, nothing to install):
+Later changes go out from your laptop (Ansible runs through `uvx`; you also need `rsync`,
+which pushes this checkout to the Nanos as `~/polyoculus-node`, and your SSH key in
+`ansible/files/authorized_keys/` or Tailscale):
 
 ```sh
 cd ansible   # from the repo root
-uvx --from ansible ansible-playbook site.yml -K --limit nano-03
+uvx --from ansible ansible-playbook site.yml --limit nano-03
 ```
 
 Until a Nano has joined Tailscale, give it `ansible_host: <ip>` in `inventory.yml`.
 Rerunning `site.yml` is always safe; it only changes what differs. Note that deleting a line
 from the config does not undo it on the Nanos: write `state: absent` instead.
 
+## Access
+
+There are no passwords; access is by identity, so handing the fleet to someone new never
+involves a secret.
+
+- **Tailscale SSH** (the normal way): anyone the tailnet allows runs `ssh alarm@nano-03`.
+  Adding a person = inviting them to the tailnet; removing = removing them. Nothing on the cards
+  changes.
+- **SSH keys** in `ansible/files/authorized_keys/<name>.pub` (needed for Ansible before a Nano
+  has joined Tailscale, e.g. on a bare switch). Commit your public key, rerun `site.yml`.
+- **Console:** keyboard + HDMI, log in as `alarm`, no password.
+
+One-time tailnet setup, in the Tailscale admin console. The tailnet must belong to a **lab**
+account (a shared lab login, or UCF's), not a student's, so it outlives the team.
+
+1. Access controls (policy file): add
+   ```json
+   "tagOwners": { "tag:nano": ["autogroup:admin"] },
+   "grants": [
+     { "src": ["autogroup:member"], "dst": ["tag:nano"], "ip": ["*"] },
+     { "src": ["tag:nano"], "dst": ["tag:nano"], "ip": ["*"] }
+   ],
+   "ssh": [
+     { "action": "accept", "src": ["autogroup:member"], "dst": ["tag:nano"], "users": ["alarm"] }
+   ]
+   ```
+   (merge with what's there; the second grant lets Nanos reach each other for time sync and INDI).
+2. Settings -> Keys -> Generate auth key: **reusable, pre-approved, tags: tag:nano**. Tagged
+   devices never expire, so remote Nanos stay on. The key itself expires (90 days max); that
+   only matters for joining new cards. An OAuth client with the `auth_keys` scope doesn't.
+3. Join cards: `sudo TS_AUTHKEY=tskey-... os/flash-card.sh ...` (joins on first boot), or for
+   cards already out there `TS_AUTHKEY=tskey-... uvx --from ansible ansible-playbook site.yml`.
+
+## Working on all Nanos at once
+
+Ansible runs on all 8 in parallel (`forks = 8`). From `ansible/`:
+
+```sh
+uvx --from ansible ansible nanos -m ping                       # who's up
+uvx --from ansible ansible nanos -a "uptime"                   # any command, everywhere
+uvx --from ansible ansible nanos -b -a "systemctl restart indiserver"
+```
+
+For interactive work, tmux with one pane per Nano and `:setw synchronize-panes on` types into
+all of them at once. Clocks: chrony on every Nano follows the internet pool and the other Nanos;
+with no internet they elect one Nano and agree with it (`chronyc sources` shows who).
+
+## Hardware on a node
+
+- **Mount** (iOptron CEM70) and **fast steering mirror** controller are USB-serial. They get
+  stable names `/dev/mount` and `/dev/fsm` from the USB port they're in, the same on every Nano:
+  plug each into its labeled port once, run `udevadm info -q property /dev/ttyUSB0 | grep ^ID_PATH=`,
+  and put the value in `usb_ports` in `ansible/group_vars/nanos.yml`. `guide.py` and `fsm.py`
+  use these names when they exist.
+- **Guide camera** (DMK 33UX273): found by name, any USB3 port.
+- **indiserver** with the iOptron driver runs at boot on port 7624, so the mount can be driven
+  over the network. INDI has no authentication: keep Nanos on the lab network/tailnet. Stop it
+  (`sudo systemctl stop indiserver`) before `guide.py simulate`, which needs the port.
+- The node software lives in `~/polyoculus-node` with its Python environments already built
+  (`uv run guide.py ...` in `guide/`, `.venv/bin/python dmk.py ...` in `camera/`). Ansible
+  pushes your checkout there; captures/ on the Nano are never touched.
+- A hung Nano reboots itself (hardware watchdog, 30 s).
+
 ## Updating
 
 Arch updates continuously, so never update Nanos one by one by hand or they drift apart.
 
 ```sh
-uvx --from ansible ansible-playbook upgrade.yml -K --limit nano-01   # canary first
+uvx --from ansible ansible-playbook upgrade.yml --limit nano-01   # canary first
 # guide with nano-01 for a night, then everyone:
-uvx --from ansible ansible-playbook upgrade.yml -K
+uvx --from ansible ansible-playbook upgrade.yml
 ```
 
 The kernel is not a pacman package; see "Updating the kernel" below.

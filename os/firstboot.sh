@@ -44,7 +44,7 @@ rm -f /root/ts-authkey
 step "done"
 systemctl disable nano-firstboot.service
 rm -f /usr/local/bin/nano-firstboot
-issue "\\n ($HOST): set up from polyoculus-node. Log in as alarm."
+issue "\\n ($HOST): set up from polyoculus-node. Log in as alarm (no password)."
 echo "Setup finished. Rebooting in 10 s (so noatime and the journal settings apply)."
 sleep 10
 systemctl reboot

@@ -1,0 +1,14 @@
+[Unit]
+Description=INDI server with the iOptron mount driver (polyoculus-node)
+After=network.target
+
+[Service]
+# INDI has no authentication: anyone who can reach port 7624 can move the mount. Keep nodes on
+# the lab network and the tailnet. Stop this before `guide.py simulate`, which needs the port.
+User=alarm
+ExecStart=/usr/bin/indiserver -p 7624 indi_ioptronv3_telescope
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

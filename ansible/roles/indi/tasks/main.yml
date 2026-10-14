@@ -4,3 +4,18 @@
   community.general.pacman:
     name: libindi
     state: present
+
+# Always on, so the mount can be driven over the network (a scheduler running all Nanos at once)
+- name: Indiserver unit
+  ansible.builtin.copy:
+    src: indiserver.service
+    dest: /etc/systemd/system/indiserver.service
+    mode: "0644"
+  register: indi_unit
+
+- name: Indiserver running
+  ansible.builtin.systemd_service:
+    name: indiserver
+    state: "{{ 'restarted' if indi_unit.changed else 'started' }}"
+    enabled: true
+    daemon_reload: "{{ indi_unit.changed }}"

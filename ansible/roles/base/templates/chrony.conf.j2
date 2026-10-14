@@ -1,0 +1,19 @@
+# Same on every card (any card works in any Nano), only the hostname differs.
+# With internet everyone follows the pool. Without it, orphan mode elects one Nano (lowest
+# reference ID) and the rest follow it, so the fleet's clocks still agree with each other.
+pool pool.ntp.org iburst
+{% for host in groups['nanos'] | difference([inventory_hostname]) | sort %}
+server {{ host }} iburst
+{% endfor %}
+local stratum 10 orphan
+
+# Serve time to the other Nanos: lab LANs and the tailnet
+allow 10.0.0.0/8
+allow 172.16.0.0/12
+allow 192.168.0.0/16
+allow 100.64.0.0/10
+
+# step the clock if it's off by more than 1 s in the first 3 updates (it starts wrong: no RTC)
+makestep 1 3
+driftfile /var/lib/chrony/drift
+rtcsync

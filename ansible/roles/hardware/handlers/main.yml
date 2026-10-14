@@ -1,0 +1,8 @@
+---
+- name: Reload udev
+  ansible.builtin.shell: udevadm control --reload && udevadm trigger --action=add --subsystem-match=tty --subsystem-match=usb
+  changed_when: true
+
+- name: Reexec systemd
+  ansible.builtin.systemd_service:
+    daemon_reexec: true

@@ -8,8 +8,10 @@ and guide pulses to the mount (`../mount`) hold it on a target pixel, e.g. the f
     uv run guide.py run --target 712 540     # hold it on a pixel
     uv run guide.py simulate                 # end-to-end test, no hardware
 
-`indiserver indi_ioptronv3_telescope` must be running first (`indi_simulator_telescope` for
-`simulate`). Logs and the calibration go to `captures/`.
+`indiserver indi_ioptronv3_telescope` must be running first; on a node it runs at boot
+(`indiserver.service`). `simulate` needs `indi_simulator_telescope` on the same port, so stop the
+service first there. The mount port defaults to `/dev/mount` when it exists. Logs and the
+calibration go to `captures/`.
 
 ## How it works
 

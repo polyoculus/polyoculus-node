@@ -12,9 +12,23 @@ base_packages:
   - uv
   - chrony
   - zram-generator
+  - fastfetch
+  - tmux
+  - picocom      # talk to the mount or mirror controller by hand
+  - usbutils     # lsusb
+  - i2c-tools
+  - lm_sensors
 
-# Keep password SSH until every Nano has keys in files/authorized_keys, or you lock yourself out
-ssh_password_auth: true
+# Nodes have no passwords: SSH is Tailscale SSH or the keys in files/authorized_keys
+ssh_password_auth: false
 
 # volatile = logs live in RAM (saves the SD card, lost on reboot); persistent = kept on the card
 journal_storage: volatile
+
+# Stable /dev/mount and /dev/fsm by USB port, so any card works in any Nano (they're identical
+# boards). Plug the adapter into the port you've labeled, then on the Nano:
+#   udevadm info -q property /dev/ttyUSB0 | grep ^ID_PATH=
+# and put that value here. Empty = no symlink.
+usb_ports:
+  mount: ""
+  fsm: ""

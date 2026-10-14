@@ -119,7 +119,9 @@ def main():
 
     def hardware(s):
         s.add_argument("--device", default="iOptronV3", help="INDI device name")
-        s.add_argument("--port", help="mount serial port (default: the driver's)")
+        # /dev/mount: the udev rule from ansible/roles/hardware, on a node
+        s.add_argument("--port", default="/dev/mount" if Path("/dev/mount").exists() else None,
+                       help="mount serial port (default: /dev/mount, else the driver's)")
         s.add_argument("-e", "--exposure", type=int, default=100_000, help="guide exposure, us")
 
     s = sub.add_parser("calibrate", help="measure how guide pulses move the star")

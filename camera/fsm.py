@@ -15,16 +15,19 @@ with a purely linear fit). Cross terms a2, b1 capture axis crosstalk.
 """
 
 import json
+import os
 import time
 
 import numpy as np
 
 V_MIN, V_MAX = -15.0, 125.0
 V_MID = 55.0
+# On a node, the udev rule from ansible/roles/hardware names the controller by its USB port
+DEFAULT_PORT = "/dev/fsm" if os.path.exists("/dev/fsm") else "/dev/ttyUSB0"
 
 
 class Mirror:
-    def __init__(self, port="/dev/ttyUSB0"):
+    def __init__(self, port=DEFAULT_PORT):
         import serial
 
         self.ser = serial.Serial(port, 19200, bytesize=8, parity="N", stopbits=1,

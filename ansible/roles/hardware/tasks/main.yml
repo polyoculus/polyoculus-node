@@ -1,0 +1,33 @@
+---
+# /dev/mount and /dev/fsm by USB port (group_vars usb_ports): the same rule on every card,
+# since the Nanos are identical boards and any card can go in any of them.
+- name: Serial device names by USB port
+  ansible.builtin.template:
+    src: 70-polyoculus-serial.rules.j2
+    dest: /etc/udev/rules.d/70-polyoculus-serial.rules
+    mode: "0644"
+  notify: Reload udev
+
+# Autosuspend can drop the guide camera or a serial adapter mid-night
+- name: USB autosuspend off
+  ansible.builtin.copy:
+    content: |
+      ACTION=="add", SUBSYSTEM=="usb", TEST=="power/control", ATTR{power/control}="on"
+    dest: /etc/udev/rules.d/50-usb-no-autosuspend.rules
+    mode: "0644"
+  notify: Reload udev
+
+# The PMIC's watchdog (max77620_wdt): systemd pets it, and a hung Nano reboots by itself
+# instead of waiting for someone to drive out to the site
+- name: Systemd drop-in directory
+  ansible.builtin.file:
+    path: /etc/systemd/system.conf.d
+    state: directory
+    mode: "0755"
+
+- name: Hardware watchdog
+  ansible.builtin.copy:
+    content: "[Manager]\nRuntimeWatchdogSec=30s\nRebootWatchdogSec=2min\n"
+    dest: /etc/systemd/system.conf.d/10-watchdog.conf
+    mode: "0644"
+  notify: Reexec systemd
